@@ -15,6 +15,7 @@ export default function CoinList({ initialData }: CoinListProps) {
   const [data, setData] = useState(initialData)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLastUpdate(new Date())
@@ -22,17 +23,20 @@ export default function CoinList({ initialData }: CoinListProps) {
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
+    setError(null)
+
     try {
       const response = await fetch('/api/market/ticker')
       if (!response.ok) {
-        throw new Error('데이터 로드 실패')
+        throw new Error('서버에서 데이터를 불러올 수 없습니다')
       }
       const result = await response.json()
       setData(result.data)
       setLastUpdate(new Date())
-    } catch (error) {
-      console.error('시세 업데이트 실패:', error)
-      alert('시세 업데이트에 실패했습니다')
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '시세 업데이트에 실패했습니다'
+      console.error('시세 업데이트 실패:', err)
+      setError(errorMessage)
     } finally {
       setIsRefreshing(false)
     }
@@ -45,6 +49,11 @@ export default function CoinList({ initialData }: CoinListProps) {
           {lastUpdate && (
             <p className="text-sm text-foreground/60">
               마지막 업데이트: {lastUpdate.toLocaleTimeString('ko-KR')}
+            </p>
+          )}
+          {error && (
+            <p className="text-sm text-red-500 mt-1">
+              {error}
             </p>
           )}
         </div>

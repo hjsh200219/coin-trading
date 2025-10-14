@@ -27,8 +27,6 @@ function formatRate(rate: string): string {
 }
 
 export default function CoinCard({ coin, ticker }: CoinCardProps) {
-  const currentPrice = parseFloat(ticker.closing_price)
-  const prevPrice = parseFloat(ticker.prev_closing_price)
   const changeRate = parseFloat(ticker.fluctate_rate_24H)
   const isPositive = changeRate >= 0
 
