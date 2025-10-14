@@ -10,14 +10,18 @@ export default function Login() {
   const supabase = createClient()
 
   const handleGoogleLogin = async () => {
+    console.log('[Login] 버튼 클릭됨!')
+    
     try {
       setIsLoading(true)
+      console.log('[Login] isLoading 상태 변경됨')
       
       // 디버깅: 환경 변수 확인
-      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
-      console.log('Has Anon Key:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-      console.log('Redirect URL:', `${window.location.origin}/auth/callback`)
+      console.log('[Login] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+      console.log('[Login] Has Anon Key:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      console.log('[Login] Redirect URL:', `${window.location.origin}/auth/callback`)
       
+      console.log('[Login] OAuth 요청 시작...')
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -25,16 +29,23 @@ export default function Login() {
         },
       })
 
-      console.log('OAuth response:', { data, error })
+      console.log('[Login] OAuth response:', { data, error })
+      
+      if (data?.url) {
+        console.log('[Login] Redirect URL received:', data.url)
+      }
 
       if (error) {
-        console.error('Login error:', error)
+        console.error('[Login] Login error:', error)
         alert(`로그인에 실패했습니다: ${error.message}`)
+      } else {
+        console.log('[Login] OAuth 요청 성공!')
       }
     } catch (error) {
-      console.error('Unexpected error:', error)
+      console.error('[Login] Unexpected error:', error)
       alert(`예상치 못한 오류가 발생했습니다: ${error}`)
     } finally {
+      console.log('[Login] finally 블록 실행')
       setIsLoading(false)
     }
   }
