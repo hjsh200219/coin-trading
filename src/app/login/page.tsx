@@ -12,20 +12,28 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true)
-      const { error } = await supabase.auth.signInWithOAuth({
+      
+      // 디버깅: 환경 변수 확인
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+      console.log('Has Anon Key:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      console.log('Redirect URL:', `${window.location.origin}/auth/callback`)
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
         },
       })
 
+      console.log('OAuth response:', { data, error })
+
       if (error) {
-        console.error('Login error:', error.message)
-        alert('로그인에 실패했습니다. 다시 시도해주세요.')
+        console.error('Login error:', error)
+        alert(`로그인에 실패했습니다: ${error.message}`)
       }
     } catch (error) {
       console.error('Unexpected error:', error)
-      alert('예상치 못한 오류가 발생했습니다.')
+      alert(`예상치 못한 오류가 발생했습니다: ${error}`)
     } finally {
       setIsLoading(false)
     }

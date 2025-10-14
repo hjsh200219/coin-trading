@@ -1,0 +1,71 @@
+'use client'
+
+// 코인 목록 표시 컴포넌트
+
+import { useState, useEffect } from 'react'
+import { BithumbTicker, MAJOR_COINS } from '@/lib/bithumb/types'
+import CoinCard from './CoinCard'
+import Button from '@/components/ui/Button'
+
+interface CoinListProps {
+  initialData: Record<string, BithumbTicker>
+}
+
+export default function CoinList({ initialData }: CoinListProps) {
+  const [data, setData] = useState(initialData)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+
+  useEffect(() => {
+    setLastUpdate(new Date())
+  }, [])
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      const response = await fetch('/api/market/ticker')
+      if (!response.ok) {
+        throw new Error('데이터 로드 실패')
+      }
+      const result = await response.json()
+      setData(result.data)
+      setLastUpdate(new Date())
+    } catch (error) {
+      console.error('시세 업데이트 실패:', error)
+      alert('시세 업데이트에 실패했습니다')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          {lastUpdate && (
+            <p className="text-sm text-foreground/60">
+              마지막 업데이트: {lastUpdate.toLocaleTimeString('ko-KR')}
+            </p>
+          )}
+        </div>
+        <Button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          variant="outline"
+          size="sm"
+        >
+          {isRefreshing ? '업데이트 중...' : '새로고침'}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {MAJOR_COINS.map((coin) => {
+          const ticker = data[coin.symbol]
+          if (!ticker) return null
+
+          return <CoinCard key={coin.symbol} coin={coin} ticker={ticker} />
+        })}
+      </div>
+    </div>
+  )
+}

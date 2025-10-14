@@ -27,6 +27,7 @@ export default function Navigation({ user, userType }: NavigationProps) {
 
   const navItems: NavItem[] = [
     { href: '/', label: '홈' },
+    { href: '/market', label: '시세' },
     { href: '/my-page', label: '마이페이지' },
     ...(userType === 'admin' ? [{ href: '/admin', label: '관리자' }] : []),
   ]
