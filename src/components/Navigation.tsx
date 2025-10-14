@@ -28,7 +28,6 @@ export default function Navigation({ user, userType }: NavigationProps) {
   const navItems: NavItem[] = [
     { href: '/', label: '홈' },
     { href: '/market', label: '시세' },
-    { href: '/my-page', label: '마이페이지' },
     ...(userType === 'admin' ? [{ href: '/admin', label: '관리자' }] : []),
   ]
 
@@ -50,7 +49,7 @@ export default function Navigation({ user, userType }: NavigationProps) {
 
   return (
     <nav className="sticky top-0 z-50 bg-surface-100 border-b border-border backdrop-blur-sm bg-surface-100/95">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-2">
         <div className="flex items-center justify-between h-16">
           {/* Logo / Page Title */}
           <Link href="/" className="flex items-center gap-2">
@@ -73,16 +72,17 @@ export default function Navigation({ user, userType }: NavigationProps) {
               </Link>
             ))}
             <div className="flex items-center gap-3 pl-4 border-l border-border">
-              {user.avatar_url && (
-                <Image
-                  src={user.avatar_url}
-                  alt={user.name || 'User'}
-                  width={32}
-                  height={32}
-                  className="w-8 h-8 rounded-full"
-                />
-              )}
-              <span className="text-sm text-foreground/70">{user.name || user.email}</span>
+              <Link href="/my-page" className="flex items-center gap-3 hover:opacity-80 transition">
+                {user.avatar_url && (
+                  <Image
+                    src={user.avatar_url}
+                    alt={user.name || 'User'}
+                    width={32}
+                    height={32}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+              </Link>
               <Button
                 onClick={handleLogout}
                 variant="danger"
@@ -130,7 +130,11 @@ export default function Navigation({ user, userType }: NavigationProps) {
                 </Link>
               ))}
               <div className="flex items-center justify-between px-4 py-3 mt-2 border-t border-border">
-                <div className="flex items-center gap-3">
+                <Link
+                  href="/my-page"
+                  className="flex items-center gap-3 hover:opacity-80 transition"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   {user.avatar_url && (
                     <Image
                       src={user.avatar_url}
@@ -144,7 +148,7 @@ export default function Navigation({ user, userType }: NavigationProps) {
                     <span className="text-sm font-medium text-foreground">{user.name || '이름 없음'}</span>
                     <span className="text-xs text-foreground/60">{user.email}</span>
                   </div>
-                </div>
+                </Link>
                 <Button
                   onClick={handleLogout}
                   variant="danger"
