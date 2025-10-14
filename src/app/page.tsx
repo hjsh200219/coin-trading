@@ -1,10 +1,13 @@
-export default function Home() {
+import AppLayout from '@/components/AppLayout'
+
+export default async function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm">
-        <h1 className="text-4xl font-bold mb-4">Coin Trading</h1>
-        <p className="text-lg">Welcome to your cryptocurrency trading application</p>
+    <AppLayout>
+      <div className="bg-surface-100 rounded-lg border border-border p-6">
+        <p className="text-foreground/70">
+          콘텐츠가 여기에 추가될 예정입니다.
+        </p>
       </div>
-    </main>
+    </AppLayout>
   )
 }

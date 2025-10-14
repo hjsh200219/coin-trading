@@ -80,3 +80,9 @@ src/
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Supabase Documentation](https://supabase.com/docs)
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+
+
+# 유용한 Terminal 명령어
+for port in 3000 3001 3002 4000 5000 5173 8000 8080 8081 9000; do
+  lsof -ti:$port | xargs kill -9 2>/dev/null
+done

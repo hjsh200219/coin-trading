@@ -3,25 +3,51 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #1c1c1c;
+  --foreground: #ededed;
+  --brand: #3ecf8e;
+  --brand-emphasis: #24b574;
+  --border: #2e2e2e;
+  --border-strong: #3d3d3d;
+  --surface: #181818;
+  --surface-75: #1f1f1f;
+  --surface-100: #262626;
+  --overlay: #181818;
+  --overlay-hover: #1f1f1f;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 모바일 터치 최적화 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 터치 스크롤 개선 */
+html {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area 대응 (iPhone 노치 등) */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* 터치 영역 최적화 */
+  .touch-manipulation {
+    touch-action: manipulation;
   }
 }

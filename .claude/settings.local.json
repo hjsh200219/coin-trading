@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npm install)",
+      "Bash(git add:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx supabase db dump:*)",
+      "Bash(npm run lint)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(git commit:*)",
+      "Bash(curl:*)",
+      "Bash(vercel ls:*)",
+      "Bash(vercel env ls:*)",
+      "Bash(vercel domains ls:*)",
+      "Bash(vercel alias:*)",
+      "Bash(vercel:*)",
+      "Bash(cat:*)",
+      "Bash(node:*)",
+      "Bash(git log:*)",
+      "Bash(npm run build)",
+      "Bash(git restore:*)",
+      "Bash(pkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
