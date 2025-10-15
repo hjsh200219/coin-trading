@@ -6,7 +6,8 @@ import { BithumbTicker, CoinDisplayInfo } from '@/lib/bithumb/types'
 
 interface CoinCardProps {
   coin: CoinDisplayInfo
-  ticker: BithumbTicker
+  ticker?: BithumbTicker
+  href?: string
 }
 
 /**
@@ -27,12 +28,36 @@ function formatRate(rate: string): string {
   return num >= 0 ? `+${num.toFixed(2)}%` : `${num.toFixed(2)}%`
 }
 
-export default function CoinCard({ coin, ticker }: CoinCardProps) {
+export default function CoinCard({ coin, ticker, href }: CoinCardProps) {
+  const linkHref = href || `/market/${coin.symbol}`
+  
+  // ticker가 없으면 간단한 버전 렌더링
+  if (!ticker) {
+    return (
+      <Link href={linkHref}>
+        <Card className="p-4 hover:border-brand/30 transition-all duration-200 cursor-pointer">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: coin.color }}
+                />
+                <h3 className="text-lg font-bold text-foreground">{coin.name}</h3>
+              </div>
+              <p className="text-sm text-foreground/60">{coin.symbol}</p>
+            </div>
+          </div>
+        </Card>
+      </Link>
+    )
+  }
+
   const changeRate = parseFloat(ticker.fluctate_rate_24H)
   const isPositive = changeRate >= 0
 
   return (
-    <Link href={`/market/${coin.symbol}`}>
+    <Link href={linkHref}>
       <Card className="p-4 hover:border-brand/30 transition-all duration-200 cursor-pointer">
       <div className="flex items-start justify-between mb-4">
         <div>

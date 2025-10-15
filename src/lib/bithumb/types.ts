@@ -32,11 +32,8 @@ export interface Candle {
   volume: number // 거래량
 }
 
-// 타임프레임 타입
-export type TimeFrame = '30m' | '1h' | '2h' | '4h' | '1d'
-
-// 조회 기간 타입
-export type Period = '1M' | '3M' | '6M' | '1Y' | '2Y' | '3Y'
+// 타임프레임과 기간 타입은 @/types/chart에서 공통으로 관리
+export type { TimeFrame, Period } from '@/types/chart'
 
 // 빗썸 캔들 API 응답 타입
 export interface BithumbCandleResponse {

@@ -5,12 +5,14 @@ import {
   createChart, 
   ColorType, 
   CandlestickSeries,
+  LineSeries,
   type IChartApi, 
   type ISeriesApi,
   type Time
 } from 'lightweight-charts'
 import type { Candle } from '@/lib/bithumb/types'
 import { Card } from '@/components/ui/Card'
+import { calculateMultipleMA } from '@/lib/indicators/calculator'
 
 interface CandlestickChartProps {
   data: Candle[]
@@ -26,6 +28,7 @@ export default function CandlestickChart({
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const maSeriesRefs = useRef<ISeriesApi<'Line'>[]>([])
   const priceLineRefs = useRef<any[]>([])
 
   useEffect(() => {
@@ -87,6 +90,7 @@ export default function CandlestickChart({
       
       // ref 초기화 (disposed 객체 접근 방지)
       candlestickSeriesRef.current = null
+      maSeriesRefs.current = []
       chartRef.current = null
       priceLineRefs.current = []
       
@@ -103,6 +107,16 @@ export default function CandlestickChart({
     if (!series || !chart || !data || data.length === 0) return
 
     try {
+      // 기존 MA 시리즈 제거
+      maSeriesRefs.current.forEach((maSeries) => {
+        try {
+          chart.removeSeries(maSeries)
+        } catch {
+          // 이미 제거된 경우 무시
+        }
+      })
+      maSeriesRefs.current = []
+
       // 기존 price line 제거
       priceLineRefs.current.forEach((priceLine) => {
         try {
@@ -128,6 +142,33 @@ export default function CandlestickChart({
       formattedData.sort((a, b) => (a.time as number) - (b.time as number))
 
       series.setData(formattedData)
+
+      // 이동평균선 계산 및 추가
+      const maData = calculateMultipleMA(data, [5, 20, 60, 120])
+      const maColors = ['#fbbf24', '#3ecf8e', '#8b5cf6', '#ec4899'] // 노랑, 초록, 보라, 핑크
+
+      maData.forEach((ma, index) => {
+        const maSeries = chart.addSeries(LineSeries, {
+          color: maColors[index],
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        })
+
+        // MA 데이터 포맷팅 (offset 고려)
+        const offset = data.length - ma.values.length
+        const maFormattedData = ma.values.map((value, i) => {
+          const candleIndex = offset + i
+          const timestamp = Math.floor(data[candleIndex].timestamp / 1000)
+          return {
+            time: timestamp as Time,
+            value: value,
+          }
+        })
+
+        maSeries.setData(maFormattedData)
+        maSeriesRefs.current.push(maSeries)
+      })
       
       // 최고가와 최저가 찾기
       const maxPrice = Math.max(...formattedData.map(d => d.high))
@@ -190,7 +231,27 @@ export default function CandlestickChart({
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-xl font-bold text-foreground">{symbol} 가격 차트</h2>
-          <p className="text-sm text-foreground/60">캔들: {data.length}개</p>
+          <div className="flex gap-3 items-center flex-wrap">
+            <div className="flex gap-2 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-0.5 bg-[#fbbf24]" />
+                <span className="text-foreground/60">MA5</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-0.5 bg-[#3ecf8e]" />
+                <span className="text-foreground/60">MA20</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-0.5 bg-[#8b5cf6]" />
+                <span className="text-foreground/60">MA60</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-0.5 bg-[#ec4899]" />
+                <span className="text-foreground/60">MA120</span>
+              </div>
+            </div>
+            <p className="text-sm text-foreground/60">캔들: {data.length}개</p>
+          </div>
         </div>
         <div ref={chartContainerRef} className="w-full" />
       </div>

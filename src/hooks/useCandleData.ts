@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Candle, TimeFrame } from '@/lib/bithumb/types'
+import type { Candle } from '@/lib/bithumb/types'
+import type { TimeFrame } from '@/types/chart'
 
 interface UseCandleDataOptions {
   symbol: string

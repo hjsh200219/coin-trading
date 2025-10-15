@@ -153,4 +153,40 @@ export function calculateMultipleDisparity(
     .filter((result): result is DisparityResult => result !== null)
 }
 
+/**
+ * 이동평균선 (Simple Moving Average) 계산
+ */
+export interface MAResult {
+  period: number
+  values: number[]
+}
+
+export function calculateMA(
+  candles: Candle[],
+  period: number
+): MAResult | null {
+  if (candles.length < period) {
+    return null
+  }
+
+  const closePrices = candles.map((c) => c.close)
+  const maValues = SMA.calculate({
+    values: closePrices,
+    period,
+  })
+
+  return maValues.length > 0 ? { period, values: maValues } : null
+}
+
+/**
+ * 복수 기간 이동평균선 계산
+ */
+export function calculateMultipleMA(
+  candles: Candle[],
+  periods: number[] = [5, 20, 60, 120]
+): MAResult[] {
+  return periods
+    .map((period) => calculateMA(candles, period))
+    .filter((result): result is MAResult => result !== null)
+}
 

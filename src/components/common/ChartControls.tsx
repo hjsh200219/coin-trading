@@ -3,25 +3,29 @@
 import { useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import type { TimeFrame, Period } from '@/types/chart'
 
-export type TimeFrame = '30m' | '1h' | '2h' | '4h' | '1d'
-export type Period = '1M' | '3M' | '6M' | '1Y' | '2Y' | '3Y'
-
-interface ChartControlSectionProps {
+interface ChartControlsProps {
   onTimeFrameChange?: (timeFrame: TimeFrame) => void
   onPeriodChange?: (period: Period) => void
   onBaseDateChange?: (date: Date) => void
+  defaultTimeFrame?: TimeFrame
+  defaultPeriod?: Period
+  defaultBaseDate?: Date
 }
 
-export default function ChartControlSection({
+export default function ChartControls({
   onTimeFrameChange,
   onPeriodChange,
   onBaseDateChange,
-}: ChartControlSectionProps) {
-  const [timeFrame, setTimeFrame] = useState<TimeFrame>('1h')
-  const [period, setPeriod] = useState<Period>('1M')
+  defaultTimeFrame = '1h',
+  defaultPeriod = '1M',
+  defaultBaseDate = new Date(),
+}: ChartControlsProps) {
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>(defaultTimeFrame)
+  const [period, setPeriod] = useState<Period>(defaultPeriod)
   const [baseDate, setBaseDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    defaultBaseDate.toISOString().split('T')[0]
   )
 
   const timeFrames: { value: TimeFrame; label: string }[] = [

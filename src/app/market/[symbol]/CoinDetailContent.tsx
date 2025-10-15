@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { CoinDisplayInfo } from '@/lib/bithumb/types'
-import type { TimeFrame, Period } from './ChartControlSection'
+import type { TimeFrame, Period } from '@/types/chart'
 import TickerInfoSection from './TickerInfoSection'
-import ChartControlSection from './ChartControlSection'
+import ChartControls from '@/components/common/ChartControls'
 import CandlestickChart from './CandlestickChart'
 import IndicatorSection from './IndicatorSection'
 import { useCandleData } from '@/hooks/useCandleData'
@@ -87,7 +87,7 @@ export default function CoinDetailContent({ coin }: CoinDetailContentProps) {
       <TickerInfoSection coin={coin} />
 
       {/* 차트 컨트롤 (타임프레임 및 기간 선택) */}
-      <ChartControlSection
+      <ChartControls
         onTimeFrameChange={setTimeFrame}
         onPeriodChange={setPeriod}
         onBaseDateChange={setBaseDate}

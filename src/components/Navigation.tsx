@@ -26,11 +26,20 @@ export default function Navigation({ user, userType }: NavigationProps) {
   const pathname = usePathname()
 
   const navItems: NavItem[] = [
-    { href: '/market', label: '시세' },
-    ...(userType === 'admin' ? [{ href: '/admin', label: '관리자' }] : []),
+    { href: '/market', label: 'Market' },
+    { href: '/simulation', label: 'Simulation' },
+    ...(userType === 'admin' ? [{ href: '/admin', label: 'Admin' }] : []),
   ]
 
-  const isActive = (href: string) => pathname === href
+  const isActive = (href: string) => {
+    if (href === '/market') {
+      return pathname === href || pathname.startsWith('/market/')
+    }
+    if (href === '/simulation') {
+      return pathname === href || pathname.startsWith('/simulation/')
+    }
+    return pathname === href
+  }
 
   const getCurrentPageTitle = () => {
     const currentItem = navItems.find(item => item.href === pathname)
@@ -51,7 +60,10 @@ export default function Navigation({ user, userType }: NavigationProps) {
         <div className="flex items-center justify-between h-16">
           {/* Logo / Page Title */}
           <Link href="/market" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-brand">{getCurrentPageTitle()}</span>
+            <span className="text-xl font-bold text-brand">
+              <span className="md:hidden">{getCurrentPageTitle()}</span>
+              <span className="hidden md:inline">Coin Trading</span>
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -86,7 +98,7 @@ export default function Navigation({ user, userType }: NavigationProps) {
                 variant="danger"
                 size="sm"
               >
-                로그아웃
+                Logout
               </Button>
             </div>
           </div>
@@ -95,7 +107,7 @@ export default function Navigation({ user, userType }: NavigationProps) {
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="md:hidden p-2 rounded-lg text-foreground hover:bg-surface-75 transition"
-            aria-label="메뉴"
+            aria-label="Menu"
           >
             {isMenuOpen ? (
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -143,7 +155,7 @@ export default function Navigation({ user, userType }: NavigationProps) {
                     />
                   )}
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium text-foreground">{user.name || '이름 없음'}</span>
+                    <span className="text-sm font-medium text-foreground">{user.name || 'No name'}</span>
                     <span className="text-xs text-foreground/60">{user.email}</span>
                   </div>
                 </Link>
@@ -152,7 +164,7 @@ export default function Navigation({ user, userType }: NavigationProps) {
                   variant="danger"
                   size="sm"
                 >
-                  로그아웃
+                  Logout
                 </Button>
               </div>
             </div>
