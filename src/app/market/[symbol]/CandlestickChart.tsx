@@ -1,0 +1,200 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
+import { 
+  createChart, 
+  ColorType, 
+  CandlestickSeries,
+  type IChartApi, 
+  type ISeriesApi,
+  type Time
+} from 'lightweight-charts'
+import type { Candle } from '@/lib/bithumb/types'
+import { Card } from '@/components/ui/Card'
+
+interface CandlestickChartProps {
+  data: Candle[]
+  isLoading?: boolean
+  symbol: string
+}
+
+export default function CandlestickChart({
+  data,
+  isLoading,
+  symbol,
+}: CandlestickChartProps) {
+  const chartContainerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<IChartApi | null>(null)
+  const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const priceLineRefs = useRef<any[]>([])
+
+  useEffect(() => {
+    if (!chartContainerRef.current || isLoading) return
+
+    // 차트 생성
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#181818' },
+        textColor: '#ededed',
+      },
+      grid: {
+        vertLines: { color: '#2e2e2e' },
+        horzLines: { color: '#2e2e2e' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 400,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        borderColor: '#2e2e2e',
+      },
+      rightPriceScale: {
+        visible: false, // y축 숨김
+      },
+    })
+
+    chartRef.current = chart
+
+    // 캔들스틱 시리즈 추가 (v5 API)
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#ef4444',
+      downColor: '#3b82f6',
+      borderUpColor: '#ef4444',
+      borderDownColor: '#3b82f6',
+      wickUpColor: '#ef4444',
+      wickDownColor: '#3b82f6',
+    })
+
+    candlestickSeriesRef.current = candlestickSeries
+
+    // 반응형 처리
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current) {
+        try {
+          chartRef.current.applyOptions({
+            width: chartContainerRef.current.clientWidth,
+          })
+        } catch (error) {
+          // 차트가 이미 제거된 경우 무시
+        }
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      
+      // ref 초기화 (disposed 객체 접근 방지)
+      candlestickSeriesRef.current = null
+      chartRef.current = null
+      priceLineRefs.current = []
+      
+      // 차트 제거
+      chart.remove()
+    }
+  }, [isLoading])
+
+  // 데이터 업데이트
+  useEffect(() => {
+    const series = candlestickSeriesRef.current
+    const chart = chartRef.current
+    
+    if (!series || !chart || !data || data.length === 0) return
+
+    try {
+      // 기존 price line 제거
+      priceLineRefs.current.forEach((priceLine) => {
+        try {
+          series.removePriceLine(priceLine)
+        } catch {
+          // 이미 제거된 경우 무시
+        }
+      })
+      priceLineRefs.current = []
+
+      const formattedData = data.map((candle) => {
+        const timestamp = Math.floor(candle.timestamp / 1000)
+        return {
+          time: timestamp as Time,
+          open: parseFloat(candle.open.toString()),
+          high: parseFloat(candle.high.toString()),
+          low: parseFloat(candle.low.toString()),
+          close: parseFloat(candle.close.toString()),
+        }
+      })
+
+      // 시간순 정렬 (오름차순)
+      formattedData.sort((a, b) => (a.time as number) - (b.time as number))
+
+      series.setData(formattedData)
+      
+      // 최고가와 최저가 찾기
+      const maxPrice = Math.max(...formattedData.map(d => d.high))
+      const minPrice = Math.min(...formattedData.map(d => d.low))
+      
+      // 최고가 수평선 추가
+      const maxPriceLine = series.createPriceLine({
+        price: maxPrice,
+        color: '#ef4444',
+        lineWidth: 1,
+        lineStyle: 2, // 점선
+        axisLabelVisible: true,
+        title: `최고가: ${maxPrice.toLocaleString()}`,
+      })
+      priceLineRefs.current.push(maxPriceLine)
+      
+      // 최저가 수평선 추가
+      const minPriceLine = series.createPriceLine({
+        price: minPrice,
+        color: '#3b82f6',
+        lineWidth: 1,
+        lineStyle: 2, // 점선
+        axisLabelVisible: true,
+        title: `최저가: ${minPrice.toLocaleString()}`,
+      })
+      priceLineRefs.current.push(minPriceLine)
+      
+      // 차트를 데이터에 맞게 조정
+      chart.timeScale().fitContent()
+    } catch (error) {
+      // disposed 에러 등 무시
+      if (error instanceof Error && !error.message.includes('disposed')) {
+        console.error('차트 데이터 설정 오류:', error)
+      }
+    }
+  }, [data])
+
+  if (isLoading) {
+    return (
+      <Card className="p-6">
+        <div className="animate-pulse">
+          <div className="h-[400px] bg-surface-75 rounded"></div>
+        </div>
+      </Card>
+    )
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <Card className="p-6">
+        <div className="h-[400px] flex items-center justify-center">
+          <p className="text-foreground/60">차트 데이터가 없습니다</p>
+        </div>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h2 className="text-xl font-bold text-foreground">{symbol} 가격 차트</h2>
+          <p className="text-sm text-foreground/60">캔들: {data.length}개</p>
+        </div>
+        <div ref={chartContainerRef} className="w-full" />
+      </div>
+    </Card>
+  )
+}
+

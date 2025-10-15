@@ -1,5 +1,6 @@
 // 개별 코인 정보 카드 컴포넌트
 
+import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
 import { BithumbTicker, CoinDisplayInfo } from '@/lib/bithumb/types'
 
@@ -31,7 +32,8 @@ export default function CoinCard({ coin, ticker }: CoinCardProps) {
   const isPositive = changeRate >= 0
 
   return (
-    <Card className="p-4 hover:border-brand/30 transition-all duration-200">
+    <Link href={`/market/${coin.symbol}`}>
+      <Card className="p-4 hover:border-brand/30 transition-all duration-200 cursor-pointer">
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -87,5 +89,6 @@ export default function CoinCard({ coin, ticker }: CoinCardProps) {
         </div>
       </div>
     </Card>
+    </Link>
   )
 }

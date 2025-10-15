@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
       />
 
       <div className="flex-1 p-4 sm:p-6 md:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="">
           {children}
         </div>
       </div>

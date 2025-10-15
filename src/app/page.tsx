@@ -1,13 +1,6 @@
-import AppLayout from '@/components/AppLayout'
+import { redirect } from 'next/navigation'
 
 export default async function Home() {
-  return (
-    <AppLayout>
-      <div className="bg-surface-100 rounded-lg border border-border p-6">
-        <p className="text-foreground/70">
-          콘텐츠가 여기에 추가될 예정입니다.
-        </p>
-      </div>
-    </AppLayout>
-  )
+  // 홈 페이지를 시세 페이지로 자동 리다이렉트
+  redirect('/market')
 }

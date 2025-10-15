@@ -26,7 +26,14 @@
       "Bash(pkill:*)",
       "Bash(railway variables:*)",
       "Bash(railway status:*)",
-      "Bash(railway up:*)"
+      "Bash(railway up:*)",
+      "Bash(git rm:*)",
+      "Bash(for port in 3000 3001 3002)",
+      "Bash(do lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(done)",
+      "Bash(lsof:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

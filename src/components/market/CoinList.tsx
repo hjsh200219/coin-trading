@@ -137,30 +137,29 @@ export default function CoinList({ initialData }: CoinListProps) {
         </div>
 
         <div className="flex gap-2 items-center">
-          {useAutoRefresh && (
-            <select
-              onChange={(e) => handleIntervalChange(Number(e.target.value))}
-              defaultValue={5000}
-              className="px-3 py-1.5 text-sm bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
-            >
-              <option value={1000}>1초</option>
-              <option value={3000}>3초</option>
-              <option value={5000}>5초</option>
-              <option value={10000}>10초</option>
-            </select>
-          )}
-
-          {!useAutoRefresh && (
-            <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" size="sm">
-              {isRefreshing ? '업데이트 중...' : '새로고침'}
-            </Button>
-          )}
+          {/* 갱신 간격 선택 또는 새로고침 버튼 영역 (고정 높이) */}
+          <div className="min-w-[120px]">
+            {useAutoRefresh ? (
+              <select
+                onChange={(e) => handleIntervalChange(Number(e.target.value))}
+                defaultValue={5000}
+                className="w-full h-[34px] px-3 py-1.5 text-sm bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand"
+              >
+                <option value={1000}>1초</option>
+                <option value={3000}>3초</option>
+                <option value={5000}>5초</option>
+                <option value={10000}>10초</option>
+              </select>
+            ) : (
+              <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" size="sm" className="w-full h-[34px]">
+                {isRefreshing ? '업데이트 중...' : '새로고침'}
+              </Button>
+            )}
+          </div>
 
           <Button onClick={handleToggleAutoRefresh} variant="outline" size="sm">
             {useAutoRefresh ? '🔴 자동 갱신 OFF' : '🟢 자동 갱신 ON'}
           </Button>
-
-
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -172,7 +171,7 @@ export default function CoinList({ initialData }: CoinListProps) {
           {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
       </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {MAJOR_COINS.map((coin) => {
           const ticker = displayData[coin.symbol]
           if (!ticker) return null

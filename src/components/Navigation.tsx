@@ -26,7 +26,6 @@ export default function Navigation({ user, userType }: NavigationProps) {
   const pathname = usePathname()
 
   const navItems: NavItem[] = [
-    { href: '/', label: '홈' },
     { href: '/market', label: '시세' },
     ...(userType === 'admin' ? [{ href: '/admin', label: '관리자' }] : []),
   ]
@@ -34,7 +33,6 @@ export default function Navigation({ user, userType }: NavigationProps) {
   const isActive = (href: string) => pathname === href
 
   const getCurrentPageTitle = () => {
-    if (pathname === '/') return 'Coin Trading'
     const currentItem = navItems.find(item => item.href === pathname)
     if (currentItem?.parent) {
       return `${currentItem.parent} > ${currentItem.label}`
@@ -49,10 +47,10 @@ export default function Navigation({ user, userType }: NavigationProps) {
 
   return (
     <nav className="sticky top-0 z-50 bg-surface-100 border-b border-border backdrop-blur-sm bg-surface-100/95">
-      <div className="max-w-7xl mx-auto px-4 sm:px-2">
+      <div className="px-4 sm:px-6 md:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo / Page Title */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/market" className="flex items-center gap-2">
             <span className="text-xl font-bold text-brand">{getCurrentPageTitle()}</span>
           </Link>
 

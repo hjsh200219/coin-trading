@@ -22,6 +22,28 @@ export interface BithumbTickerResponse {
   }
 }
 
+// 캔들 데이터 타입
+export interface Candle {
+  timestamp: number // 타임스탬프 (ms)
+  open: number // 시가
+  close: number // 종가
+  high: number // 고가
+  low: number // 저가
+  volume: number // 거래량
+}
+
+// 타임프레임 타입
+export type TimeFrame = '30m' | '1h' | '2h' | '4h' | '1d'
+
+// 조회 기간 타입
+export type Period = '1M' | '3M' | '6M' | '1Y' | '2Y' | '3Y'
+
+// 빗썸 캔들 API 응답 타입
+export interface BithumbCandleResponse {
+  status: string
+  data: Array<[number, string, string, string, string, string]> // [timestamp, open, close, high, low, volume]
+}
+
 export interface CoinDisplayInfo {
   symbol: string // 코인 심볼 (BTC, ETH 등)
   name: string // 코인 한글 이름
