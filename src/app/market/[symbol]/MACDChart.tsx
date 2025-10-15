@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts'
-import { Card } from '@/components/ui/Card'
+import IndicatorChartWrapper from '@/components/common/IndicatorChartWrapper'
 import type { MACDResult } from '@/lib/indicators/calculator'
 import type { Candle } from '@/lib/bithumb/types'
 
@@ -45,28 +45,16 @@ export default function MACDChart({ macd, candles }: MACDChartProps) {
   }, [macd, candles])
 
   return (
-    <Card className="p-4">
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">
-            MACD (12, 26, 9)
-          </h3>
-          <div className="flex gap-3 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-[#3ecf8e]" />
-              <span className="text-foreground/60">MACD</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-[#fbbf24]" />
-              <span className="text-foreground/60">Signal</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-2 bg-[#8b5cf6]/50" />
-              <span className="text-foreground/60">Histogram</span>
-            </div>
-          </div>
-        </div>
-
+    <IndicatorChartWrapper
+      title="MACD (12, 26, 9)"
+      legends={[
+        { color: '#3ecf8e', label: 'MACD', type: 'line' },
+        { color: '#fbbf24', label: 'Signal', type: 'line' },
+        { color: 'rgba(139, 92, 246, 0.5)', label: 'Histogram', type: 'bar' },
+      ]}
+      height={200}
+    >
+      <>
         <ResponsiveContainer width="100%" height={200}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
@@ -145,8 +133,8 @@ export default function MACDChart({ macd, candles }: MACDChartProps) {
             </p>
           </div>
         </div>
-      </div>
-    </Card>
+      </>
+    </IndicatorChartWrapper>
   )
 }
 

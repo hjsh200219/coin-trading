@@ -12,7 +12,7 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts'
-import { Card } from '@/components/ui/Card'
+import IndicatorChartWrapper from '@/components/common/IndicatorChartWrapper'
 import type { Candle } from '@/lib/bithumb/types'
 
 interface AOChartProps {
@@ -48,24 +48,15 @@ export default function AOChart({ ao, candles }: AOChartProps) {
   const trendColor = latest > 0 ? 'text-[#3ecf8e]' : 'text-red-500'
 
   return (
-    <Card className="p-4">
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">
-            Awesome Oscillator (5, 34)
-          </h3>
-          <div className="flex gap-3 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-2 bg-[#3ecf8e]" />
-              <span className="text-foreground/60">상승</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-2 bg-red-500" />
-              <span className="text-foreground/60">하락</span>
-            </div>
-          </div>
-        </div>
-
+    <IndicatorChartWrapper
+      title="Awesome Oscillator (5, 34)"
+      legends={[
+        { color: '#3ecf8e', label: '상승', type: 'bar' },
+        { color: '#ef4444', label: '하락', type: 'bar' },
+      ]}
+      height={200}
+    >
+      <>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
@@ -120,8 +111,8 @@ export default function AOChart({ ao, candles }: AOChartProps) {
             </p>
           </div>
         </div>
-      </div>
-    </Card>
+      </>
+    </IndicatorChartWrapper>
   )
 }
 

@@ -13,7 +13,7 @@ import {
   Area,
   ComposedChart,
 } from 'recharts'
-import { Card } from '@/components/ui/Card'
+import IndicatorChartWrapper from '@/components/common/IndicatorChartWrapper'
 import type { Candle } from '@/lib/bithumb/types'
 
 interface RSIChartProps {
@@ -57,18 +57,12 @@ export default function RSIChart({ rsi, candles }: RSIChartProps) {
   }
 
   return (
-    <Card className="p-4">
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">RSI (14)</h3>
-          <div className="flex gap-3 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-[#3ecf8e]" />
-              <span className="text-foreground/60">RSI</span>
-            </div>
-          </div>
-        </div>
-
+    <IndicatorChartWrapper
+      title="RSI (14)"
+      legends={[{ color: '#3ecf8e', label: 'RSI', type: 'line' }]}
+      height={200}
+    >
+      <>
         <ResponsiveContainer width="100%" height={200}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
@@ -133,8 +127,8 @@ export default function RSIChart({ rsi, candles }: RSIChartProps) {
             <p className={`font-semibold ${statusColor}`}>{status}</p>
           </div>
         </div>
-      </div>
-    </Card>
+      </>
+    </IndicatorChartWrapper>
   )
 }
 

@@ -13,7 +13,7 @@ import {
   Area,
   ComposedChart,
 } from 'recharts'
-import { Card } from '@/components/ui/Card'
+import IndicatorChartWrapper from '@/components/common/IndicatorChartWrapper'
 import type { Candle } from '@/lib/bithumb/types'
 import { calculateRTI } from '@/lib/indicators/calculator'
 
@@ -47,34 +47,31 @@ export default function RTIChart({ candles }: RTIChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <Card className="p-4">
-        <div className="h-64 flex items-center justify-center text-foreground/60">
+      <IndicatorChartWrapper
+        title="RTI (100, 95, 20)"
+        legends={[
+          { color: '#00bcd4', label: 'RTI', type: 'line' },
+          { color: '#ffeb3b', label: 'Signal', type: 'line' },
+        ]}
+        height={200}
+      >
+        <div className="h-full flex items-center justify-center text-foreground/60">
           데이터 부족 (최소 100개 필요)
         </div>
-      </Card>
+      </IndicatorChartWrapper>
     )
   }
 
   return (
-    <Card className="p-4">
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">
-            RTI (100, 95, 20)
-          </h3>
-          <div className="flex gap-3 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-[#00bcd4]" />
-              <span className="text-foreground/60">RTI</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-[#ffeb3b]" />
-              <span className="text-foreground/60">Signal</span>
-            </div>
-          </div>
-        </div>
-        
-        <ResponsiveContainer width="100%" height={250}>
+    <IndicatorChartWrapper
+      title="RTI (100, 95, 20)"
+      legends={[
+        { color: '#00bcd4', label: 'RTI', type: 'line' },
+        { color: '#ffeb3b', label: 'Signal', type: 'line' },
+      ]}
+      height={200}
+    >
+      <ResponsiveContainer width="100%" height={200}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
         <XAxis
@@ -145,8 +142,7 @@ export default function RTIChart({ candles }: RTIChartProps) {
         />
       </ComposedChart>
     </ResponsiveContainer>
-      </div>
-    </Card>
+    </IndicatorChartWrapper>
   )
 }
 

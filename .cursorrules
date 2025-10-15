@@ -29,9 +29,11 @@
 
 #### UI 컴포넌트 규칙
 - **필수**: UI 요소 구현 시 `src/components/ui/` 폴더의 공통 컴포넌트 우선 사용
+- **DRY 원칙 적용**: 동일한 UI 패턴이 2회 이상 사용되면 즉시 공통 컴포넌트로 추출
 - 필요한 컴포넌트가 없을 경우 `src/components/ui/`에 새로운 공통 컴포넌트 생성
 - 페이지별 특화 컴포넌트만 페이지 디렉토리에 위치
 - 공통 UI 컴포넌트는 variant, size 등의 props로 다양한 케이스 지원
+- **예시**: 버튼, 입력 필드, 카드, 모달, 툴팁 등 반복되는 UI 요소는 모두 공통화
 
 #### 문서 관리
 - 모든 PRD(Product Requirement Document) 파일은 `.docs/` 폴더에 저장
@@ -133,6 +135,17 @@ import type { TimeFrame, Period } from '@/types/chart'
 
 ### 컴포넌트 아키텍처
 
+#### DRY 원칙 (Don't Repeat Yourself)
+- **필수 규칙**: 2번 이상 사용되는 코드 패턴은 공통 컴포넌트로 추출
+- **판단 기준**: 
+  - 동일하거나 유사한 UI 패턴이 2곳 이상에서 발견되면 즉시 공통화
+  - 향후 재사용 가능성이 있는 패턴도 공통 컴포넌트로 생성 고려
+- **위치 결정**:
+  - 범용적인 UI 요소 → `src/components/ui/`
+  - 도메인 로직이 포함된 재사용 요소 → `src/components/common/`
+  - 특정 기능 영역에만 사용 → 해당 기능 폴더 내 공통 컴포넌트
+- **이점**: 코드 중복 방지, 유지보수성 향상, 일관된 UI/UX 제공
+
 #### 레이아웃 컴포넌트
 - `AppLayout`: 인증 + 네비게이션을 포함한 중앙 집중식 레이아웃
 - `Navigation`: 사용자 정보와 로그아웃이 포함된 반응형 네비게이션
@@ -142,6 +155,7 @@ import type { TimeFrame, Period } from '@/types/chart'
 - variant와 size props로 일관된 스타일링
 - 모든 컴포넌트는 Tailwind 테마 컬러 사용
 - **중요**: 새로운 UI 요소 필요 시 이 폴더에 공통 컴포넌트로 생성
+- **2회 이상 사용**: 같은 패턴이 반복되면 반드시 공통 컴포넌트로 추출
 
 #### 공통 컴포넌트 (`src/components/common/`)
 - **ChartControls**: 차트 제어 컴포넌트 (기준 날짜, 조회 기간, 타임프레임)
@@ -153,6 +167,8 @@ import type { TimeFrame, Period } from '@/types/chart'
 - 페이지 디렉토리에 위치 (예: `/app/my-page/ProfileCard.tsx`)
 - **반드시** `src/components/ui/`의 공통 컴포넌트를 사용하여 구성
 - 페이지에만 특화된 로직이 있을 때만 별도 컴포넌트 생성
+- **중요**: 같은 컴포넌트가 다른 페이지에서도 필요하다면 즉시 `src/components/common/`으로 이동
+- **리팩토링 기준**: 2개 이상의 페이지에서 사용 시 공통화 필수
 
 #### 타입 정의
 - 공통 타입은 `src/types/` 디렉토리에 정의
@@ -351,12 +367,13 @@ rm -rf .next && npm run dev
 2. ✅ TypeScript strict mode 준수
 3. ✅ ESLint 규칙 준수 (disable 금지)
 4. ✅ 공통 UI 컴포넌트 우선 사용
-5. ✅ Server/Client 컴포넌트 적절히 구분
-6. ✅ Supabase 클라이언트 패턴 준수
-7. ✅ `@/*` 경로 별칭 사용
-8. ✅ Tailwind 테마 컬러 사용
-9. ✅ Next.js 15 dynamic params는 Promise로 처리
-10. ✅ Git push 전 반드시 lint → tsc → build 체크
-11. ❌ DB 삭제/초기화 금지 (사용자 확인 필수)
-12. ❌ ESLint/TypeScript 체크 비활성화 금지
+5. ✅ **DRY 원칙**: 2번 이상 사용되는 패턴은 공통 컴포넌트로 추출
+6. ✅ Server/Client 컴포넌트 적절히 구분
+7. ✅ Supabase 클라이언트 패턴 준수
+8. ✅ `@/*` 경로 별칭 사용
+9. ✅ Tailwind 테마 컬러 사용
+10. ✅ Next.js 15 dynamic params는 Promise로 처리
+11. ✅ Git push 전 반드시 lint → tsc → build 체크
+12. ❌ DB 삭제/초기화 금지 (사용자 확인 필수)
+13. ❌ ESLint/TypeScript 체크 비활성화 금지
 

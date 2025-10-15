@@ -12,7 +12,7 @@ import {
   ReferenceLine,
   Legend,
 } from 'recharts'
-import { Card } from '@/components/ui/Card'
+import IndicatorChartWrapper from '@/components/common/IndicatorChartWrapper'
 import type { DisparityResult } from '@/lib/indicators/calculator'
 import type { Candle } from '@/lib/bithumb/types'
 
@@ -76,26 +76,19 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
 
   const colors = ['#fbbf24', '#3ecf8e', '#8b5cf6'] // 노랑, 초록, 보라
 
-  return (
-    <Card className="p-4">
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">
-            이격도 (Disparity Index)
-          </h3>
-          <div className="flex gap-3 text-xs">
-            {disparity.map((d, index) => (
-              <div key={d.period} className="flex items-center gap-1">
-                <div 
-                  className="w-3 h-0.5" 
-                  style={{ backgroundColor: colors[index] }}
-                />
-                <span className="text-foreground/60">{d.period}일</span>
-              </div>
-            ))}
-          </div>
-        </div>
+  const legends = disparity.map((d, index) => ({
+    color: colors[index],
+    label: `${d.period}일`,
+    type: 'line' as const,
+  }))
 
+  return (
+    <IndicatorChartWrapper
+      title="이격도 (Disparity Index)"
+      legends={legends}
+      height={200}
+    >
+      <>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
@@ -191,8 +184,8 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
             </div>
           ))}
         </div>
-      </div>
-    </Card>
+      </>
+    </IndicatorChartWrapper>
   )
 }
 
