@@ -94,12 +94,21 @@ export interface Candle {
 import { MAJOR_COINS } from '@/lib/bithumb/types'
 
 /**
+ * 업비트 심볼 매핑 (빗썸과 다른 경우)
+ * 예: 빗썸의 MATIC은 업비트에서 POL로 거래됨
+ */
+const UPBIT_SYMBOL_MAP: Record<string, string> = {
+  MATIC: 'POL', // Polygon 리브랜딩
+}
+
+/**
  * 업비트 마켓 코드 생성
  * @param symbol 코인 심볼 (BTC, ETH 등)
  * @returns 업비트 마켓 코드 (KRW-BTC)
  */
 export function getUpbitMarketCode(symbol: string): string {
-  return `KRW-${symbol}`
+  const upbitSymbol = UPBIT_SYMBOL_MAP[symbol] || symbol
+  return `KRW-${upbitSymbol}`
 }
 
 /**

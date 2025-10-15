@@ -12,7 +12,7 @@ interface RouteParams {
  * 업비트 캔들 데이터 조회 API
  * GET /api/upbit/candles/[symbol]?timeframe=1m&period=200
  * 
- * @param symbol 코인 심볼 (BTC, ETH 등)
+ * @param symbol 코인 심볼 (BTC, ETH, MATIC 등 - 빗썸 기준)
  * @param timeframe 타임프레임 (1m, 3m, 5m, 15m, 30m, 1h, 4h, 1d)
  * @param period 조회할 캔들 개수 (기본값: 200, 최대: 200)
  */
