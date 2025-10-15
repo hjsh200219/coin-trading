@@ -13,6 +13,7 @@ import {
   Area,
   ComposedChart,
 } from 'recharts'
+import { Card } from '@/components/ui/Card'
 import type { Candle } from '@/lib/bithumb/types'
 import { calculateRTI } from '@/lib/indicators/calculator'
 
@@ -33,7 +34,9 @@ export default function RTIChart({ candles }: RTIChartProps) {
     const alignedCandles = candles.slice(offset)
 
     return alignedCandles.map((candle, index) => ({
-      time: new Date(candle.timestamp).toLocaleTimeString('ko-KR', {
+      time: new Date(candle.timestamp).toLocaleString('ko-KR', {
+        month: '2-digit',
+        day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
       }),
@@ -44,15 +47,35 @@ export default function RTIChart({ candles }: RTIChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center text-foreground/60">
-        데이터 부족 (최소 100개 필요)
-      </div>
+      <Card className="p-4">
+        <div className="h-64 flex items-center justify-center text-foreground/60">
+          데이터 부족 (최소 100개 필요)
+        </div>
+      </Card>
     )
   }
 
   return (
-    <ResponsiveContainer width="100%" height={250}>
-      <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+    <Card className="p-4">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">
+            RTI (100, 95, 20)
+          </h3>
+          <div className="flex gap-3 text-xs">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-0.5 bg-[#00bcd4]" />
+              <span className="text-foreground/60">RTI</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-0.5 bg-[#ffeb3b]" />
+              <span className="text-foreground/60">Signal</span>
+            </div>
+          </div>
+        </div>
+        
+        <ResponsiveContainer width="100%" height={250}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
         <XAxis
           dataKey="time"
@@ -122,6 +145,8 @@ export default function RTIChart({ candles }: RTIChartProps) {
         />
       </ComposedChart>
     </ResponsiveContainer>
+      </div>
+    </Card>
   )
 }
 
