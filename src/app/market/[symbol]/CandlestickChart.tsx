@@ -54,6 +54,18 @@ export default function CandlestickChart({
       rightPriceScale: {
         visible: false, // y축 숨김
       },
+      localization: {
+        timeFormatter: (timestamp: number) => {
+          // Unix 타임스탬프(초)를 KST로 변환하여 표시
+          return new Date(timestamp * 1000).toLocaleString('ko-KR', {
+            timeZone: 'Asia/Seoul',
+            hour: '2-digit',
+            minute: '2-digit',
+            month: '2-digit',
+            day: '2-digit',
+          })
+        },
+      },
     })
 
     chartRef.current = chart

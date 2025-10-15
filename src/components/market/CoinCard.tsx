@@ -2,44 +2,36 @@
 
 import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
+import StatCard from '@/components/ui/StatCard'
 import { BithumbTicker, CoinDisplayInfo } from '@/lib/bithumb/types'
 import type { BinanceTicker } from '@/lib/binance/types'
+import type { UpbitTicker } from '@/lib/upbit/types'
+import { formatPrice, formatRate } from '@/lib/utils/format'
 
 interface CoinCardProps {
   coin: CoinDisplayInfo
-  ticker?: BithumbTicker | BinanceTicker
+  ticker?: BithumbTicker | BinanceTicker | UpbitTicker
   href?: string
-}
-
-/**
- * 숫자를 천 단위 콤마로 포맷팅
- */
-function formatPrice(price: string): string {
-  const num = parseFloat(price)
-  return num.toLocaleString('ko-KR', {
-    maximumFractionDigits: 0,
-  })
-}
-
-/**
- * 변동률 포맷팅
- */
-function formatRate(rate: string): string {
-  const num = parseFloat(rate)
-  return num >= 0 ? `+${num.toFixed(2)}%` : `${num.toFixed(2)}%`
 }
 
 /**
  * 티커가 Binance 형식인지 확인
  */
-function isBinanceTicker(ticker: BithumbTicker | BinanceTicker): ticker is BinanceTicker {
+function isBinanceTicker(ticker: BithumbTicker | BinanceTicker | UpbitTicker): ticker is BinanceTicker {
   return 'lastPrice' in ticker
+}
+
+/**
+ * 티커가 Upbit 형식인지 확인
+ */
+function isUpbitTicker(ticker: BithumbTicker | BinanceTicker | UpbitTicker): ticker is UpbitTicker {
+  return 'trade_price' in ticker && 'market' in ticker
 }
 
 /**
  * 티커 데이터를 통합 형식으로 변환
  */
-function normalizeTicker(ticker: BithumbTicker | BinanceTicker) {
+function normalizeTicker(ticker: BithumbTicker | BinanceTicker | UpbitTicker) {
   if (isBinanceTicker(ticker)) {
     return {
       price: ticker.lastPrice,
@@ -47,6 +39,15 @@ function normalizeTicker(ticker: BithumbTicker | BinanceTicker) {
       highPrice: ticker.highPrice,
       lowPrice: ticker.lowPrice,
       volume: ticker.volume,
+    }
+  }
+  if (isUpbitTicker(ticker)) {
+    return {
+      price: String(ticker.trade_price),
+      changeRate: String(ticker.signed_change_rate * 100), // 업비트는 소수로 오므로 100 곱하기
+      highPrice: String(ticker.high_price),
+      lowPrice: String(ticker.low_price),
+      volume: String(ticker.acc_trade_volume_24h),
     }
   }
   return {
@@ -87,6 +88,8 @@ export default function CoinCard({ coin, ticker, href }: CoinCardProps) {
   const changeRate = parseFloat(normalizedData.changeRate)
   const isPositive = changeRate >= 0
   const isBinance = isBinanceTicker(ticker)
+  const isUpbit = isUpbitTicker(ticker)
+  const currencySymbol = isBinance ? '$' : '₩'
 
   return (
     <Link href={linkHref}>
@@ -114,26 +117,25 @@ export default function CoinCard({ coin, ticker, href }: CoinCardProps) {
       </div>
 
       <div className="space-y-3">
-        <div>
-          <p className="text-xs text-foreground/60 mb-1">현재가</p>
-          <p className="text-2xl font-bold text-foreground">
-            {isBinance ? '$' : '₩'}{formatPrice(normalizedData.price)}
-          </p>
-        </div>
+        <StatCard
+          label="현재가"
+          value={`${currencySymbol}${formatPrice(normalizedData.price)}`}
+          size="lg"
+        />
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-xs text-foreground/60 mb-1">24h 최고</p>
-            <p className="text-sm font-semibold text-red-500">
-              {isBinance ? '$' : '₩'}{formatPrice(normalizedData.highPrice)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-foreground/60 mb-1">24h 최저</p>
-            <p className="text-sm font-semibold text-blue-500">
-              {isBinance ? '$' : '₩'}{formatPrice(normalizedData.lowPrice)}
-            </p>
-          </div>
+          <StatCard
+            label="24h 최고"
+            value={`${currencySymbol}${formatPrice(normalizedData.highPrice)}`}
+            valueColor="text-red-500"
+            size="sm"
+          />
+          <StatCard
+            label="24h 최저"
+            value={`${currencySymbol}${formatPrice(normalizedData.lowPrice)}`}
+            valueColor="text-blue-500"
+            size="sm"
+          />
         </div>
 
         <div className="pt-3 border-t border-border">

@@ -1,18 +1,17 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  ComposedChart,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from 'recharts'
+import { ComposedChart, Bar, Line, ResponsiveContainer } from 'recharts'
 import IndicatorChartWrapper from '@/components/common/IndicatorChartWrapper'
+import IndicatorValueGrid from '@/components/common/IndicatorValueGrid'
+import {
+  ChartXAxis,
+  ChartYAxis,
+  ChartGrid,
+  ChartTooltip,
+  ChartReferenceLine,
+} from '@/components/common/ChartElements'
+import { formatChartTime } from '@/lib/utils/format'
 import type { MACDResult } from '@/lib/indicators/calculator'
 import type { Candle } from '@/lib/bithumb/types'
 
@@ -31,12 +30,7 @@ export default function MACDChart({ macd, candles }: MACDChartProps) {
       const candle = candles[candleIndex]
 
       return {
-        time: new Date(candle.timestamp).toLocaleString('ko-KR', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        time: formatChartTime(candle.timestamp),
         macd: macd.macd[index],
         signal: macd.signal[index],
         histogram: macd.histogram[index],
@@ -57,33 +51,11 @@ export default function MACDChart({ macd, candles }: MACDChartProps) {
       <>
         <ResponsiveContainer width="100%" height={200}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
-            <XAxis
-              dataKey="time"
-              stroke="#ededed"
-              tick={{ fill: '#ededed', fontSize: 10 }}
-              tickFormatter={(value) => {
-                const parts = value.split(' ')
-                return `${parts[0]} ${parts[1]}`
-              }}
-            />
-            <YAxis
-              stroke="#ededed"
-              tick={{ fill: '#ededed', fontSize: 10 }}
-              domain={['auto', 'auto']}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#181818',
-                border: '1px solid #2e2e2e',
-                borderRadius: '8px',
-                color: '#ededed',
-              }}
-              labelStyle={{ color: '#ededed' }}
-              itemStyle={{ color: '#ededed' }}
-              formatter={(value: number) => value.toFixed(2)}
-            />
-            <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
+            <ChartGrid />
+            <ChartXAxis />
+            <ChartYAxis />
+            <ChartTooltip />
+            <ChartReferenceLine y={0} />
             <Bar
               dataKey="histogram"
               fill="#8b5cf6"
@@ -107,32 +79,29 @@ export default function MACDChart({ macd, candles }: MACDChartProps) {
           </ComposedChart>
         </ResponsiveContainer>
 
-        <div className="grid grid-cols-3 gap-3 text-sm pt-2 border-t border-border">
-          <div>
-            <p className="text-xs text-foreground/60">MACD</p>
-            <p className="font-medium text-[#3ecf8e]">
-              {macd.macd[macd.macd.length - 1]?.toFixed(2) || '-'}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-foreground/60">Signal</p>
-            <p className="font-medium text-[#fbbf24]">
-              {macd.signal[macd.signal.length - 1]?.toFixed(2) || '-'}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-foreground/60">Histogram</p>
-            <p
-              className={`font-medium ${
+        <IndicatorValueGrid
+          items={[
+            {
+              label: 'MACD',
+              value: macd.macd[macd.macd.length - 1] ?? '-',
+              color: '#3ecf8e',
+            },
+            {
+              label: 'Signal',
+              value: macd.signal[macd.signal.length - 1] ?? '-',
+              color: '#fbbf24',
+            },
+            {
+              label: 'Histogram',
+              value: macd.histogram[macd.histogram.length - 1] ?? '-',
+              color:
                 (macd.histogram[macd.histogram.length - 1] || 0) > 0
-                  ? 'text-red-500'
-                  : 'text-blue-500'
-              }`}
-            >
-              {macd.histogram[macd.histogram.length - 1]?.toFixed(2) || '-'}
-            </p>
-          </div>
-        </div>
+                  ? '#ef4444'
+                  : '#3b82f6',
+            },
+          ]}
+          columns={3}
+        />
       </>
     </IndicatorChartWrapper>
   )

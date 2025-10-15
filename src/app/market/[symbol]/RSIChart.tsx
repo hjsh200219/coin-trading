@@ -1,19 +1,17 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  Area,
-  ComposedChart,
-} from 'recharts'
+import { Line, ResponsiveContainer, Area, ComposedChart } from 'recharts'
 import IndicatorChartWrapper from '@/components/common/IndicatorChartWrapper'
+import IndicatorValueGrid from '@/components/common/IndicatorValueGrid'
+import {
+  ChartXAxis,
+  ChartYAxis,
+  ChartGrid,
+  ChartTooltip,
+  ChartReferenceLine,
+} from '@/components/common/ChartElements'
+import { formatChartTime } from '@/lib/utils/format'
 import type { Candle } from '@/lib/bithumb/types'
 
 interface RSIChartProps {
@@ -31,12 +29,7 @@ export default function RSIChart({ rsi, candles }: RSIChartProps) {
       const candle = candles[candleIndex]
 
       return {
-        time: new Date(candle.timestamp).toLocaleString('ko-KR', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        time: formatChartTime(candle.timestamp),
         rsi: value,
         overbought: 70,
         oversold: 30,
@@ -65,36 +58,13 @@ export default function RSIChart({ rsi, candles }: RSIChartProps) {
       <>
         <ResponsiveContainer width="100%" height={200}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
-            <XAxis
-              dataKey="time"
-              stroke="#ededed"
-              tick={{ fill: '#ededed', fontSize: 10 }}
-              tickFormatter={(value) => {
-                const parts = value.split(' ')
-                return `${parts[0]} ${parts[1]}`
-              }}
-            />
-            <YAxis
-              stroke="#ededed"
-              tick={{ fill: '#ededed', fontSize: 10 }}
-              domain={[0, 100]}
-              ticks={[0, 30, 50, 70, 100]}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#181818',
-                border: '1px solid #2e2e2e',
-                borderRadius: '8px',
-                color: '#ededed',
-              }}
-              labelStyle={{ color: '#ededed' }}
-              itemStyle={{ color: '#ededed' }}
-              formatter={(value: number) => value.toFixed(2)}
-            />
-            <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" label={{ value: '과매수', position: 'right', fill: '#ef4444', fontSize: 10 }} />
-            <ReferenceLine y={30} stroke="#3b82f6" strokeDasharray="3 3" label={{ value: '과매도', position: 'right', fill: '#3b82f6', fontSize: 10 }} />
-            <ReferenceLine y={50} stroke="#666" strokeDasharray="3 3" />
+            <ChartGrid />
+            <ChartXAxis />
+            <ChartYAxis domain={[0, 100]} ticks={[0, 30, 50, 70, 100]} />
+            <ChartTooltip />
+            <ChartReferenceLine y={70} label="과매수" stroke="#ef4444" labelColor="#ef4444" />
+            <ChartReferenceLine y={30} label="과매도" stroke="#3b82f6" labelColor="#3b82f6" />
+            <ChartReferenceLine y={50} />
             
             {/* 과매수 영역 */}
             <Area
@@ -115,18 +85,21 @@ export default function RSIChart({ rsi, candles }: RSIChartProps) {
           </ComposedChart>
         </ResponsiveContainer>
 
-        <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t border-border">
-          <div>
-            <p className="text-xs text-foreground/60">현재 RSI</p>
-            <p className="font-medium text-[#3ecf8e]">
-              {latest?.toFixed(2) || '-'}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-foreground/60">상태</p>
-            <p className={`font-semibold ${statusColor}`}>{status}</p>
-          </div>
-        </div>
+        <IndicatorValueGrid
+          items={[
+            {
+              label: '현재 RSI',
+              value: latest ?? '-',
+              color: '#3ecf8e',
+            },
+            {
+              label: '상태',
+              value: status,
+              className: `font-semibold ${statusColor}`,
+            },
+          ]}
+          columns={2}
+        />
       </>
     </IndicatorChartWrapper>
   )

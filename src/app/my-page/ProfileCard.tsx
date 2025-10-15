@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Image from 'next/image'
 import { Button, Input, Card, CardBody, CardTitle } from '@/components/ui'
+import { UserTypeBadge } from '@/components/common'
 
 type ProfileCardProps = {
   profile: {
@@ -39,32 +40,6 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
 export default function ProfileCard({ profile, updateProfile }: ProfileCardProps) {
   const [name, setName] = useState(profile.name || '')
 
-  const getUserTypeLabel = (userType: string) => {
-    switch (userType) {
-      case 'admin':
-        return 'Admin'
-      case 'member':
-        return 'Member'
-      case 'quest':
-        return 'Guest'
-      default:
-        return userType
-    }
-  }
-
-  const getUserTypeBadgeColor = (userType: string) => {
-    switch (userType) {
-      case 'admin':
-        return 'bg-brand text-background'
-      case 'member':
-        return 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-      case 'quest':
-        return 'bg-surface-75 text-foreground/60 border border-border'
-      default:
-        return 'bg-surface-75 text-foreground/60'
-    }
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* 프로필 정보 카드 - 수정 불가 항목 */}
@@ -96,13 +71,7 @@ export default function ProfileCard({ profile, updateProfile }: ProfileCardProps
               <label className="text-sm font-medium text-foreground/70 min-w-[80px] flex-shrink-0">
                 멤버십
               </label>
-              <span
-                className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getUserTypeBadgeColor(
-                  profile.user_type
-                )}`}
-              >
-                {getUserTypeLabel(profile.user_type)}
-              </span>
+              <UserTypeBadge type={profile.user_type} size="md" />
             </div>
 
             <div className="flex items-center gap-4">

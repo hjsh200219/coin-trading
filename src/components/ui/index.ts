@@ -1,3 +1,6 @@
 export { default as Button } from './Button'
 export { default as Input } from './Input'
 export { Card, CardHeader, CardTitle, CardBody, CardFooter } from './Card'
+export { Tooltip } from './Tooltip'
+export { default as StatCard } from './StatCard'
+export type { StatCardProps } from './StatCard'

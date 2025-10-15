@@ -4,3 +4,17 @@ export { default as ChartControls } from './ChartControls'
 export { default as IndicatorChartWrapper } from './IndicatorChartWrapper'
 export type { LegendItem } from './IndicatorChartWrapper'
 
+export { default as IndicatorValueGrid } from './IndicatorValueGrid'
+export type { ValueItem } from './IndicatorValueGrid'
+
+export {
+  ChartXAxis,
+  ChartYAxis,
+  ChartGrid,
+  ChartTooltip,
+  ChartReferenceLine,
+} from './ChartElements'
+
+export { default as UserTypeBadge } from './UserTypeBadge'
+export type { UserTypeBadgeProps } from './UserTypeBadge'
+

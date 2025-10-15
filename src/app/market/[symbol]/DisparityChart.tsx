@@ -1,18 +1,17 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  Legend,
-} from 'recharts'
+import { LineChart, Line, ResponsiveContainer } from 'recharts'
 import IndicatorChartWrapper from '@/components/common/IndicatorChartWrapper'
+import IndicatorValueGrid from '@/components/common/IndicatorValueGrid'
+import {
+  ChartXAxis,
+  ChartYAxis,
+  ChartGrid,
+  ChartTooltip,
+  ChartReferenceLine,
+} from '@/components/common/ChartElements'
+import { formatChartTime } from '@/lib/utils/format'
 import type { DisparityResult } from '@/lib/indicators/calculator'
 import type { Candle } from '@/lib/bithumb/types'
 
@@ -37,12 +36,7 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
       const candle = candles[candleIndex]
 
       const dataPoint: any = {
-        time: new Date(candle.timestamp).toLocaleString('ko-KR', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        time: formatChartTime(candle.timestamp),
       }
 
       // 각 기간별 이격도 데이터 추가
@@ -91,71 +85,28 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
       <>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2e2e2e" />
-            <XAxis
-              dataKey="time"
-              stroke="#ededed"
-              tick={{ fill: '#ededed', fontSize: 10 }}
-              tickFormatter={(value) => {
-                const parts = value.split(' ')
-                return `${parts[0]} ${parts[1]}`
-              }}
-            />
-            <YAxis
-              stroke="#ededed"
-              tick={{ fill: '#ededed', fontSize: 10 }}
-              domain={[90, 110]}
-              ticks={[90, 95, 100, 105, 110]}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#181818',
-                border: '1px solid #2e2e2e',
-                borderRadius: '8px',
-                color: '#ededed',
-              }}
-              labelStyle={{ color: '#ededed' }}
-              itemStyle={{ color: '#ededed' }}
-              formatter={(value: number) => `${value.toFixed(2)}%`}
-            />
+            <ChartGrid />
+            <ChartXAxis />
+            <ChartYAxis domain={[90, 110]} ticks={[90, 95, 100, 105, 110]} />
+            <ChartTooltip formatter={(value: number) => `${value.toFixed(2)}%`} />
             
             {/* 과매수 구간 */}
-            <ReferenceLine 
-              y={105} 
-              stroke="#ef4444" 
-              strokeDasharray="3 3" 
-              label={{ 
-                value: '과매수', 
-                position: 'right', 
-                fill: '#ef4444', 
-                fontSize: 10 
-              }} 
+            <ChartReferenceLine
+              y={105}
+              label="과매수"
+              stroke="#ef4444"
+              labelColor="#ef4444"
             />
             
             {/* 기준선 */}
-            <ReferenceLine 
-              y={100} 
-              stroke="#666" 
-              strokeDasharray="3 3"
-              label={{ 
-                value: '기준', 
-                position: 'right', 
-                fill: '#666', 
-                fontSize: 10 
-              }}
-            />
+            <ChartReferenceLine y={100} label="기준" stroke="#666" labelColor="#666" />
             
             {/* 과매도 구간 */}
-            <ReferenceLine 
-              y={95} 
-              stroke="#3b82f6" 
-              strokeDasharray="3 3" 
-              label={{ 
-                value: '과매도', 
-                position: 'right', 
-                fill: '#3b82f6', 
-                fontSize: 10 
-              }} 
+            <ChartReferenceLine
+              y={95}
+              label="과매도"
+              stroke="#3b82f6"
+              labelColor="#3b82f6"
             />
 
             {/* 각 기간별 이격도 라인 */}
@@ -173,17 +124,14 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
           </LineChart>
         </ResponsiveContainer>
 
-        <div className="grid grid-cols-3 gap-3 text-sm pt-2 border-t border-border">
-          {latestValues.map((item, index) => (
-            <div key={item.period}>
-              <p className="text-xs text-foreground/60">{item.period}일</p>
-              <p className="font-medium" style={{ color: colors[index] }}>
-                {item.value.toFixed(2)}%
-              </p>
-              <p className={`text-xs ${item.color}`}>{item.status}</p>
-            </div>
-          ))}
-        </div>
+        <IndicatorValueGrid
+          items={latestValues.map((item, index) => ({
+            label: `${item.period}일`,
+            value: `${item.value.toFixed(2)}%\n${item.status}`,
+            color: colors[index],
+          }))}
+          columns={3}
+        />
       </>
     </IndicatorChartWrapper>
   )

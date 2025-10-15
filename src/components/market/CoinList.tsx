@@ -8,7 +8,7 @@ import CoinCard from './CoinCard'
 import Button from '@/components/ui/Button'
 import { useBithumbWebSocket } from '@/hooks/useBithumbWebSocket'
 
-type Exchange = 'bithumb' | 'binance'
+type Exchange = 'bithumb' | 'binance' | 'upbit'
 
 interface CoinListProps {
   initialData: Record<string, BithumbTicker>
@@ -61,9 +61,14 @@ export default function CoinList({ initialData }: CoinListProps) {
     setError(null)
 
     try {
-      const apiEndpoint = exchange === 'bithumb' 
-        ? '/api/market/ticker' 
-        : '/api/binance/ticker'
+      let apiEndpoint: string
+      if (exchange === 'bithumb') {
+        apiEndpoint = '/api/market/ticker'
+      } else if (exchange === 'upbit') {
+        apiEndpoint = '/api/upbit/ticker'
+      } else {
+        apiEndpoint = '/api/binance/ticker'
+      }
       
       const response = await fetch(apiEndpoint)
       if (!response.ok) {
@@ -83,7 +88,7 @@ export default function CoinList({ initialData }: CoinListProps) {
 
   const handleExchangeChange = (newExchange: Exchange) => {
     setExchange(newExchange)
-    setUseAutoRefresh(newExchange === 'bithumb') // 바이낸스는 자동 갱신 비활성화
+    setUseAutoRefresh(newExchange === 'bithumb') // 업비트, 바이낸스는 자동 갱신 비활성화
     setError(null)
   }
 
@@ -141,6 +146,13 @@ export default function CoinList({ initialData }: CoinListProps) {
           빗썸 (Bithumb)
         </Button>
         <Button
+          onClick={() => handleExchangeChange('upbit')}
+          variant={exchange === 'upbit' ? 'primary' : 'outline'}
+          size="sm"
+        >
+          업비트 (Upbit)
+        </Button>
+        <Button
           onClick={() => handleExchangeChange('binance')}
           variant={exchange === 'binance' ? 'primary' : 'outline'}
           size="sm"
@@ -165,9 +177,11 @@ export default function CoinList({ initialData }: CoinListProps) {
               <span className={`text-sm font-medium ${getStatusColor()}`}>
                 {exchange === 'binance' 
                   ? '수동 모드 (바이낸스)' 
-                  : useAutoRefresh 
-                    ? getStatusText() 
-                    : '수동 모드'}
+                  : exchange === 'upbit'
+                    ? '수동 모드 (업비트)'
+                    : useAutoRefresh 
+                      ? getStatusText() 
+                      : '수동 모드'}
               </span>
             </div>
 
@@ -211,7 +225,7 @@ export default function CoinList({ initialData }: CoinListProps) {
       <div className="flex items-center gap-2">
         {lastUpdate && (
             <p className="text-xs text-foreground/60">
-              마지막 업데이트: {lastUpdate.toLocaleTimeString('ko-KR')}
+              마지막 업데이트: {lastUpdate.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' })} KST
             </p>
           )}
           {error && <p className="text-sm text-red-500 mt-1">{error}</p>}

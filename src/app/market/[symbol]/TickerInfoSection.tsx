@@ -2,37 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Card } from '@/components/ui/Card'
+import StatCard from '@/components/ui/StatCard'
 import { BithumbTicker, CoinDisplayInfo } from '@/lib/bithumb/types'
+import { formatPrice, formatRate, formatChange } from '@/lib/utils/format'
 
 interface TickerInfoSectionProps {
   coin: CoinDisplayInfo
-}
-
-/**
- * 숫자를 천 단위 콤마로 포맷팅
- */
-function formatPrice(price: string): string {
-  const num = parseFloat(price)
-  return num.toLocaleString('ko-KR', {
-    maximumFractionDigits: 0,
-  })
-}
-
-/**
- * 변동률 포맷팅
- */
-function formatRate(rate: string): string {
-  const num = parseFloat(rate)
-  return num >= 0 ? `+${num.toFixed(2)}%` : `${num.toFixed(2)}%`
-}
-
-/**
- * 변동가 포맷팅
- */
-function formatChange(change: string, isPositive: boolean): string {
-  const num = parseFloat(change)
-  const formatted = num.toLocaleString('ko-KR', { maximumFractionDigits: 0 })
-  return isPositive ? `▲ ₩${formatted}` : `▼ ₩${Math.abs(num).toLocaleString('ko-KR', { maximumFractionDigits: 0 })}`
 }
 
 export default function TickerInfoSection({ coin }: TickerInfoSectionProps) {
@@ -147,75 +122,59 @@ export default function TickerInfoSection({ coin }: TickerInfoSectionProps) {
         {/* 주요 지표 그리드 */}
         {showDetails && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {/* 24시간 최고가 */}
-          <div className="space-y-1">
-            <p className="text-xs text-foreground/60">24h 최고</p>
-            <p className="text-lg font-semibold text-red-500">
-              ₩{formatPrice(ticker.max_price)}
-            </p>
-          </div>
+          <StatCard
+            label="24h 최고"
+            value={`₩${formatPrice(ticker.max_price)}`}
+            valueColor="text-red-500"
+            size="md"
+          />
 
-          {/* 24시간 최저가 */}
-          <div className="space-y-1">
-            <p className="text-xs text-foreground/60">24h 최저</p>
-            <p className="text-lg font-semibold text-blue-500">
-              ₩{formatPrice(ticker.min_price)}
-            </p>
-          </div>
+          <StatCard
+            label="24h 최저"
+            value={`₩${formatPrice(ticker.min_price)}`}
+            valueColor="text-blue-500"
+            size="md"
+          />
 
-          {/* 24시간 거래량 */}
-          <div className="space-y-1">
-            <p className="text-xs text-foreground/60">24h 거래량</p>
-            <p className="text-lg font-semibold text-foreground">
-              {parseFloat(ticker.units_traded_24H).toLocaleString('ko-KR', {
-                maximumFractionDigits: 2,
-              })}{' '}
-              {coin.symbol}
-            </p>
-          </div>
+          <StatCard
+            label="24h 거래량"
+            value={`${parseFloat(ticker.units_traded_24H).toLocaleString('ko-KR', {
+              maximumFractionDigits: 2,
+            })} ${coin.symbol}`}
+            size="md"
+          />
 
-          {/* 24시간 거래대금 */}
-          <div className="space-y-1">
-            <p className="text-xs text-foreground/60">24h 거래대금</p>
-            <p className="text-lg font-semibold text-foreground">
-              ₩{formatPrice(ticker.acc_trade_value_24H)}
-            </p>
-          </div>
+          <StatCard
+            label="24h 거래대금"
+            value={`₩${formatPrice(ticker.acc_trade_value_24H)}`}
+            size="md"
+          />
 
-          {/* 시가 */}
-          <div className="space-y-1">
-            <p className="text-xs text-foreground/60">시가 (00:00)</p>
-            <p className="text-base font-medium text-foreground">
-              ₩{formatPrice(ticker.opening_price)}
-            </p>
-          </div>
+          <StatCard
+            label="시가 (00:00)"
+            value={`₩${formatPrice(ticker.opening_price)}`}
+            size="sm"
+          />
 
-          {/* 전일 종가 */}
-          <div className="space-y-1">
-            <p className="text-xs text-foreground/60">전일 종가</p>
-            <p className="text-base font-medium text-foreground">
-              ₩{formatPrice(ticker.prev_closing_price)}
-            </p>
-          </div>
+          <StatCard
+            label="전일 종가"
+            value={`₩${formatPrice(ticker.prev_closing_price)}`}
+            size="sm"
+          />
 
-          {/* 거래량 (00:00 기준) */}
-          <div className="space-y-1">
-            <p className="text-xs text-foreground/60">거래량 (00:00)</p>
-            <p className="text-base font-medium text-foreground">
-              {parseFloat(ticker.units_traded).toLocaleString('ko-KR', {
-                maximumFractionDigits: 2,
-              })}{' '}
-              {coin.symbol}
-            </p>
-          </div>
+          <StatCard
+            label="거래량 (00:00)"
+            value={`${parseFloat(ticker.units_traded).toLocaleString('ko-KR', {
+              maximumFractionDigits: 2,
+            })} ${coin.symbol}`}
+            size="sm"
+          />
 
-          {/* 거래대금 (00:00 기준) */}
-          <div className="space-y-1">
-            <p className="text-xs text-foreground/60">거래대금 (00:00)</p>
-            <p className="text-base font-medium text-foreground">
-              ₩{formatPrice(ticker.acc_trade_value)}
-            </p>
-          </div>
+          <StatCard
+            label="거래대금 (00:00)"
+            value={`₩${formatPrice(ticker.acc_trade_value)}`}
+            size="sm"
+          />
         </div>
         )}
 
