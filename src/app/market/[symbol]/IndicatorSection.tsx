@@ -7,11 +7,13 @@ import {
   calculateRSI,
   calculateAO,
   calculateMultipleDisparity,
+  calculateRTI,
 } from '@/lib/indicators/calculator'
 import MACDChart from './MACDChart'
 import RSIChart from './RSIChart'
 import AOChart from './AOChart'
 import DisparityChart from './DisparityChart'
+import RTIChart from './RTIChart'
 
 interface IndicatorSectionProps {
   candles: Candle[]
@@ -23,6 +25,7 @@ export default function IndicatorSection({ candles }: IndicatorSectionProps) {
     rsi: true,
     ao: true,
     disparity: true,
+    rti: true,
   })
 
   // 지표 계산
@@ -32,6 +35,7 @@ export default function IndicatorSection({ candles }: IndicatorSectionProps) {
   const disparity = enabledIndicators.disparity
     ? calculateMultipleDisparity(candles, [20, 60, 120])
     : null
+  const rti = enabledIndicators.rti ? calculateRTI(candles) : null
 
   const toggleIndicator = (indicator: keyof typeof enabledIndicators) => {
     setEnabledIndicators((prev) => ({
@@ -84,6 +88,11 @@ export default function IndicatorSection({ candles }: IndicatorSectionProps) {
       {/* 이격도 차트 */}
       {enabledIndicators.disparity && disparity && disparity.length > 0 && (
         <DisparityChart disparity={disparity} candles={candles} />
+      )}
+
+      {/* RTI 차트 */}
+      {enabledIndicators.rti && rti && (
+        <RTIChart candles={candles} />
       )}
     </div>
   )

@@ -1,6 +1,6 @@
 // 기술적 지표 계산 유틸리티
 
-import { MACD, RSI, SMA } from 'technicalindicators'
+import { MACD, RSI, SMA, EMA, SD } from 'technicalindicators'
 import type { Candle } from '@/lib/bithumb/types'
 
 /**
@@ -30,7 +30,7 @@ export function calculateMACD(
     slowPeriod,
     signalPeriod,
     SimpleMAOscillator: false,
-    SimpleMASignal: false,
+    SimpleMASignal: true, // indicator.md: signal = sma(macd, signalPeriod)
   })
 
   if (!macdData || macdData.length === 0) {
@@ -103,6 +103,7 @@ export function calculateAO(
 
 /**
  * 이격도 (Disparity Index) 계산
+ * indicator.md: 100 * (close - xEMA) / xEMA
  */
 export interface DisparityResult {
   period: number
@@ -119,19 +120,19 @@ export function calculateDisparity(
 
   const closePrices = candles.map((c) => c.close)
 
-  // 이동평균 계산
-  const ma = SMA.calculate({
+  // EMA 계산 (indicator.md에서 EMA 사용)
+  const ema = EMA.calculate({
     values: closePrices,
     period,
   })
 
-  // 이격도 = (현재가 / 이동평균) × 100
+  // 이격도 = 100 * (현재가 - EMA) / EMA
   const disparityValues: number[] = []
   const offset = period - 1
 
-  for (let i = 0; i < ma.length; i++) {
+  for (let i = 0; i < ema.length; i++) {
     const currentPrice = closePrices[i + offset]
-    const disparity = (currentPrice / ma[i]) * 100
+    const disparity = (100 * (currentPrice - ema[i])) / ema[i]
     disparityValues.push(disparity)
   }
 
@@ -188,5 +189,92 @@ export function calculateMultipleMA(
   return periods
     .map((period) => calculateMA(candles, period))
     .filter((result): result is MAResult => result !== null)
+}
+
+/**
+ * RTI (Relative Trend Index) 계산
+ * indicator.md 기반 구현
+ */
+export interface RTIResult {
+  rti: number[]
+  signal: number[] // EMA of RTI
+}
+
+export function calculateRTI(
+  candles: Candle[],
+  trendDataCount = 100,
+  sensitivityPercentage = 95,
+  signalLength = 20
+): RTIResult | null {
+  if (candles.length < trendDataCount) {
+    return null
+  }
+
+  const closePrices = candles.map((c) => c.close)
+  const rtiValues: number[] = []
+
+  // 각 시점마다 RTI 계산
+  for (let i = trendDataCount - 1; i < closePrices.length; i++) {
+    const currentClose = closePrices[i]
+    
+    // trendDataCount 개수만큼의 데이터로 upper/lower trend 계산
+    const upperArray: number[] = []
+    const lowerArray: number[] = []
+    
+    for (let j = 0; j < trendDataCount; j++) {
+      const idx = i - j
+      if (idx < 0) continue
+      
+      const close = closePrices[idx]
+      
+      // 표준편차 계산 (period=2)
+      let stdev = 0
+      if (idx >= 1) {
+        const values = [closePrices[idx], closePrices[idx - 1]]
+        const sdResult = SD.calculate({ values, period: 2 })
+        stdev = sdResult[0] || 0
+      }
+      
+      const upperTrend = close + stdev
+      const lowerTrend = close - stdev
+      
+      upperArray.push(upperTrend)
+      lowerArray.push(lowerTrend)
+    }
+    
+    // 정렬
+    upperArray.sort((a, b) => a - b)
+    lowerArray.sort((a, b) => a - b)
+    
+    // 인덱스 계산
+    const upperIndex = Math.round((sensitivityPercentage / 100) * trendDataCount) - 1
+    const lowerIndex = Math.round(((100 - sensitivityPercentage) / 100) * trendDataCount) - 1
+    
+    const upperTrend = upperArray[upperIndex] || upperArray[upperArray.length - 1]
+    const lowerTrend = lowerArray[lowerIndex] || lowerArray[0]
+    
+    // RTI 계산
+    const denominator = upperTrend - lowerTrend
+    const rti = denominator !== 0 
+      ? ((currentClose - lowerTrend) / denominator) * 100 
+      : 50 // 기본값
+    
+    rtiValues.push(Math.max(0, Math.min(100, rti))) // 0-100 범위로 제한
+  }
+
+  // Signal Line 계산 (RTI의 EMA)
+  const signalValues = EMA.calculate({
+    values: rtiValues,
+    period: signalLength,
+  })
+
+  // signal의 길이에 맞춰 rti 조정
+  const offset = rtiValues.length - signalValues.length
+  const alignedRTI = rtiValues.slice(offset)
+
+  return {
+    rti: alignedRTI,
+    signal: signalValues,
+  }
 }
 
