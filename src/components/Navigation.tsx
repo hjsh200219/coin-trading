@@ -56,6 +56,8 @@ export default function Navigation({ user, userType }: NavigationProps) {
 
   return (
     <nav className="sticky top-0 z-50 bg-surface-100 border-b border-border backdrop-blur-sm bg-surface-100/95">
+      {/* Safe area 상단 패딩 (아이폰 노치) */}
+      <div className="h-[env(safe-area-inset-top)] bg-surface-100"></div>
       <div className="px-4 sm:px-6 md:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo / Page Title */}

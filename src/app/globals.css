@@ -16,11 +16,21 @@
   --overlay-hover: #1f1f1f;
 }
 
+html {
+  background: var(--background);
+  -webkit-overflow-scrolling: touch;
+  min-height: 100vh;
+  /* 아이폰 노치 영역까지 배경 확장 */
+  min-height: -webkit-fill-available;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
 }
 
 /* 모바일 터치 최적화 */
@@ -28,16 +38,13 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 터치 스크롤 개선 */
-html {
-  -webkit-overflow-scrolling: touch;
-}
-
 /* Safe area 대응 (iPhone 노치 등) */
 @supports (padding: max(0px)) {
   body {
     padding-left: max(0px, env(safe-area-inset-left));
     padding-right: max(0px, env(safe-area-inset-right));
+    padding-top: max(0px, env(safe-area-inset-top));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
   }
 }
 

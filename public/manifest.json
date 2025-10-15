@@ -1,0 +1,19 @@
+{
+  "name": "Coin Trading",
+  "short_name": "Coin Trading",
+  "description": "암호화폐 거래 및 시뮬레이션 애플리케이션",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1c1c1c",
+  "theme_color": "#1c1c1c",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
