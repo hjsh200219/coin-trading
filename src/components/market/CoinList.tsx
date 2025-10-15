@@ -8,21 +8,24 @@ import CoinCard from './CoinCard'
 import Button from '@/components/ui/Button'
 import { useBithumbWebSocket } from '@/hooks/useBithumbWebSocket'
 
+type Exchange = 'bithumb' | 'binance'
+
 interface CoinListProps {
   initialData: Record<string, BithumbTicker>
 }
 
 export default function CoinList({ initialData }: CoinListProps) {
+  const [exchange, setExchange] = useState<Exchange>('bithumb')
   const [useAutoRefresh, setUseAutoRefresh] = useState(true)
   const [manualData, setManualData] = useState(initialData)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 자동 갱신 훅
+  // 자동 갱신 훅 (빗썸만 지원)
   const { data: autoData, status, reconnect, setRefreshInterval } = useBithumbWebSocket({
     symbols: MAJOR_COINS.map((c) => c.symbol),
-    enabled: useAutoRefresh,
+    enabled: useAutoRefresh && exchange === 'bithumb',
     refreshInterval: 5000, // 5초
     onError: (err) => {
       console.error('자동 갱신 오류:', err)
@@ -31,7 +34,10 @@ export default function CoinList({ initialData }: CoinListProps) {
   })
 
   // 표시할 데이터 선택
-  const displayData = useAutoRefresh && Object.keys(autoData).length > 0 ? autoData : manualData
+  const displayData = 
+    useAutoRefresh && exchange === 'bithumb' && Object.keys(autoData).length > 0 
+      ? autoData 
+      : manualData
 
   useEffect(() => {
     setLastUpdate(new Date())
@@ -44,12 +50,22 @@ export default function CoinList({ initialData }: CoinListProps) {
     }
   }, [autoData, useAutoRefresh])
 
+  // 거래소 변경 시 데이터 새로고침
+  useEffect(() => {
+    handleRefresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exchange])
+
   const handleRefresh = async () => {
     setIsRefreshing(true)
     setError(null)
 
     try {
-      const response = await fetch('/api/market/ticker')
+      const apiEndpoint = exchange === 'bithumb' 
+        ? '/api/market/ticker' 
+        : '/api/binance/ticker'
+      
+      const response = await fetch(apiEndpoint)
       if (!response.ok) {
         throw new Error('서버에서 데이터를 불러올 수 없습니다')
       }
@@ -63,6 +79,12 @@ export default function CoinList({ initialData }: CoinListProps) {
     } finally {
       setIsRefreshing(false)
     }
+  }
+
+  const handleExchangeChange = (newExchange: Exchange) => {
+    setExchange(newExchange)
+    setUseAutoRefresh(newExchange === 'bithumb') // 바이낸스는 자동 갱신 비활성화
+    setError(null)
   }
 
   const handleToggleAutoRefresh = () => {
@@ -109,13 +131,31 @@ export default function CoinList({ initialData }: CoinListProps) {
   return (
     <div>
       <div className="mb-6">
+      {/* 거래소 선택 */}
+      <div className="mb-4 flex gap-2">
+        <Button
+          onClick={() => handleExchangeChange('bithumb')}
+          variant={exchange === 'bithumb' ? 'primary' : 'outline'}
+          size="sm"
+        >
+          빗썸 (Bithumb)
+        </Button>
+        <Button
+          onClick={() => handleExchangeChange('binance')}
+          variant={exchange === 'binance' ? 'primary' : 'outline'}
+          size="sm"
+        >
+          바이낸스 (Binance)
+        </Button>
+      </div>
+
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div
                 className={`w-2 h-2 rounded-full ${
-                  status === 'connected'
+                  status === 'connected' && exchange === 'bithumb'
                     ? 'bg-brand animate-pulse'
                     : status === 'error'
                       ? 'bg-red-500'
@@ -123,7 +163,11 @@ export default function CoinList({ initialData }: CoinListProps) {
                 }`}
               />
               <span className={`text-sm font-medium ${getStatusColor()}`}>
-                {useAutoRefresh ? getStatusText() : '수동 모드'}
+                {exchange === 'binance' 
+                  ? '수동 모드 (바이낸스)' 
+                  : useAutoRefresh 
+                    ? getStatusText() 
+                    : '수동 모드'}
               </span>
             </div>
 
@@ -139,7 +183,7 @@ export default function CoinList({ initialData }: CoinListProps) {
         <div className="flex gap-2 items-center">
           {/* 갱신 간격 선택 또는 새로고침 버튼 영역 (고정 높이) */}
           <div className="min-w-[120px]">
-            {useAutoRefresh ? (
+            {useAutoRefresh && exchange === 'bithumb' ? (
               <select
                 onChange={(e) => handleIntervalChange(Number(e.target.value))}
                 defaultValue={5000}
@@ -157,9 +201,11 @@ export default function CoinList({ initialData }: CoinListProps) {
             )}
           </div>
 
-          <Button onClick={handleToggleAutoRefresh} variant="outline" size="sm">
-            {useAutoRefresh ? '🔴 자동 갱신 OFF' : '🟢 자동 갱신 ON'}
-          </Button>
+          {exchange === 'bithumb' && (
+            <Button onClick={handleToggleAutoRefresh} variant="outline" size="sm">
+              {useAutoRefresh ? '🔴 자동 갱신 OFF' : '🟢 자동 갱신 ON'}
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2">
