@@ -268,6 +268,14 @@ async function serverAction(formData: FormData) {
 - 보안을 위해 항상 RLS 정책 포함
 - 외래 키는 `auth.users(id)`를 참조하며 `ON DELETE CASCADE` 사용
 
+### 시간대 처리 규칙
+- **모든 시간은 KST(한국 표준시, UTC+9) 기준**으로 저장하고 조회
+- 데이터베이스에 저장되는 timestamp는 KST 기준
+- 외부 API(Bithumb, Binance 등)에서 받은 시간 데이터는 KST로 변환 후 저장
+- UI에 표시되는 모든 시간은 KST 기준
+- 시간 포맷 유틸리티: `@/lib/utils/format`의 `formatChartTime()` 사용
+- 차트 X축 시간 표시: `MM/DD HH:mm` 형식 (KST)
+
 ### SQL 파일 관리
 
 #### 파일 위치
