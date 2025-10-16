@@ -38,7 +38,7 @@ export default function IndicatorChartWrapper({
           </div>
         </div>
 
-        <div style={{ height: `${height}px` }}>{children}</div>
+        <div>{children}</div>
       </div>
     </Card>
   )

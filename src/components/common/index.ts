@@ -7,6 +7,8 @@ export type { LegendItem } from './IndicatorChartWrapper'
 export { default as IndicatorValueGrid } from './IndicatorValueGrid'
 export type { ValueItem } from './IndicatorValueGrid'
 
+export { default as ExchangeSelector } from './ExchangeSelector'
+
 export {
   ChartXAxis,
   ChartYAxis,

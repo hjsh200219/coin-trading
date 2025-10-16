@@ -1,17 +1,11 @@
 'use client'
 
-// 코인 목록 표시 컴포넌트
-
-import { BithumbTicker, MAJOR_COINS } from '@/lib/bithumb/types'
-import CoinCard from './CoinCard'
+import { MAJOR_COINS } from '@/lib/bithumb/types'
+import CoinCard from '@/components/market/CoinCard'
 import { ExchangeSelector } from '@/components/common'
 import { useExchangeData } from '@/hooks/useExchangeData'
 
-interface CoinListProps {
-  initialData: Record<string, BithumbTicker>
-}
-
-export default function CoinList({ initialData }: CoinListProps) {
+export default function SimulationContent() {
   const {
     exchange,
     useAutoRefresh,
@@ -25,14 +19,10 @@ export default function CoinList({ initialData }: CoinListProps) {
     handleRefresh,
     handleIntervalChange,
     reconnect,
-  } = useExchangeData({ 
-    initialExchange: 'bithumb', 
-    enableAutoRefresh: true,
-    initialData,
-  })
+  } = useExchangeData()
 
   return (
-    <div>
+    <div className="space-y-6">
       <ExchangeSelector
         exchange={exchange}
         useAutoRefresh={useAutoRefresh}
@@ -47,14 +37,22 @@ export default function CoinList({ initialData }: CoinListProps) {
         onReconnect={reconnect}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {MAJOR_COINS.map((coin) => {
           const ticker = displayData[coin.symbol]
           if (!ticker) return null
 
-          return <CoinCard key={coin.symbol} coin={coin} ticker={ticker} />
+          return (
+            <CoinCard
+              key={coin.symbol}
+              coin={coin}
+              ticker={ticker}
+              href={`/simulation/${coin.symbol}`}
+            />
+          )
         })}
       </div>
     </div>
   )
 }
+
