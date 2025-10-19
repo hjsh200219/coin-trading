@@ -24,7 +24,7 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
   const chartData = useMemo(() => {
     if (disparity.length === 0) return []
 
-    // 가장 긴 이격도 데이터를 기준으로 차트 생성
+    // 가장 긴 Dispariy 데이터를 기준으로 차트 생성
     const longestDisparity = disparity.reduce((prev, current) => 
       current.values.length > prev.values.length ? current : prev
     )
@@ -39,7 +39,7 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
         time: formatChartTime(candle.timestamp),
       }
 
-      // 각 기간별 이격도 데이터 추가
+      // 각 기간별 Dispariy 데이터 추가
       disparity.forEach((d) => {
         const disparityOffset = longestDisparity.values.length - d.values.length
         const disparityIndex = index - disparityOffset
@@ -52,7 +52,7 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
     })
   }, [disparity, candles])
 
-  // 각 이격도의 최신 값
+  // 각 Dispariy의 최신 값
   const latestValues = disparity.map((d) => ({
     period: d.period,
     value: d.values[d.values.length - 1],
@@ -78,7 +78,7 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
 
   return (
     <IndicatorChartWrapper
-      title="이격도 (Disparity Index)"
+      title="Disparity Index"
       legends={legends}
       height={200}
     >
@@ -109,7 +109,7 @@ export default function DisparityChart({ disparity, candles }: DisparityChartPro
               labelColor="#3b82f6"
             />
 
-            {/* 각 기간별 이격도 라인 */}
+            {/* 각 기간별 Dispariy 라인 */}
             {disparity.map((d, index) => (
               <Line
                 key={d.period}

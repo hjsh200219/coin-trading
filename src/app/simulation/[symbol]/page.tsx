@@ -1,6 +1,7 @@
 import AppLayout from '@/components/AppLayout'
 import { MAJOR_COINS } from '@/lib/bithumb/types'
 import { notFound } from 'next/navigation'
+import RankingAnalysisContent from './RankingAnalysisContent'
 
 interface SimulationDetailPageProps {
   params: Promise<{
@@ -18,11 +19,7 @@ export default async function SimulationDetailPage({ params }: SimulationDetailP
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div className="p-8 border border-border rounded-lg text-center">
-          <p className="text-foreground/60">Coming soon...</p>
-        </div>
-      </div>
+      <RankingAnalysisContent symbol={coin.symbol} />
     </AppLayout>
   )
 }

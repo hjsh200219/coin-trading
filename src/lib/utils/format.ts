@@ -111,3 +111,60 @@ export function formatDateTime(
   })
 }
 
+/**
+ * 숫자를 소수점 자리수와 함께 포맷팅
+ * @param num - 포맷팅할 숫자
+ * @param decimals - 소수점 자리수 (기본값: 2)
+ * @returns 포맷팅된 숫자 문자열
+ * 
+ * @example
+ * formatNumber(1234.567, 2) // "1,234.57"
+ * formatNumber(1234567, 0) // "1,234,567"
+ */
+export function formatNumber(num: number, decimals = 2): string {
+  return num.toLocaleString('ko-KR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+}
+
+/**
+ * 심볼에 맞는 가격 포맷팅
+ * @param price - 가격
+ * @param symbol - 코인 심볼
+ * @returns 포맷팅된 가격 문자열
+ * 
+ * @example
+ * formatCoinPrice(1234567, 'BTC') // "1,234,567" (정수)
+ * formatCoinPrice(1234.56, 'ETH') // "1,234.56" (2자리)
+ */
+export function formatCoinPrice(price: number, symbol: string): string {
+  if (symbol === 'BTC') {
+    return formatNumber(price, 0) // BTC는 정수
+  }
+  return formatNumber(price, 2) // 기본 2자리
+}
+
+/**
+ * 거래량을 단위와 함께 축약 포맷팅 (K, M, B)
+ * @param volume - 거래량
+ * @returns 포맷팅된 거래량 문자열
+ * 
+ * @example
+ * formatVolumeShort(1234567890) // "1.23B"
+ * formatVolumeShort(1234567) // "1.23M"
+ * formatVolumeShort(1234) // "1.23K"
+ */
+export function formatVolumeShort(volume: number): string {
+  if (volume >= 1_000_000_000) {
+    return `${formatNumber(volume / 1_000_000_000, 2)}B`
+  }
+  if (volume >= 1_000_000) {
+    return `${formatNumber(volume / 1_000_000, 2)}M`
+  }
+  if (volume >= 1_000) {
+    return `${formatNumber(volume / 1_000, 2)}K`
+  }
+  return formatNumber(volume, 2)
+}
+

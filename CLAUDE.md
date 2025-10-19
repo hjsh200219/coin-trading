@@ -69,7 +69,46 @@ done
 - **스타일링**: Tailwind CSS (커스텀 다크 테마 - Supabase 스타일)
 - **데이터베이스**: Supabase (PostgreSQL)
 - **인증**: Supabase Auth (Google OAuth)
+- **차트 라이브러리**: Lightweight Charts, Recharts
+- **기술 지표**: technicalindicators (RSI, MACD, Bollinger Bands 등)
 - **배포**: Vercel
+
+### 거래소 통합 아키텍처
+
+**다중 거래소 지원**:
+- **Bithumb**: WebSocket 실시간 데이터 + REST API
+- **Upbit**: REST API (현재가, 캔들 데이터)
+- **Binance**: REST API (글로벌 시세)
+
+**아키텍처 패턴**:
+```
+src/lib/
+├── bithumb/
+│   ├── api.ts          # REST API 클라이언트
+│   └── types.ts        # Bithumb 타입 정의
+├── upbit/
+│   ├── api.ts          # REST API 클라이언트
+│   └── types.ts        # Upbit 타입 정의
+└── binance/
+    ├── api.ts          # REST API 클라이언트
+    └── types.ts        # Binance 타입 정의
+```
+
+**공통 패턴**:
+- 각 거래소는 독립적인 API 클라이언트와 에러 타입 (`{Exchange}APIError`)
+- 공통 `Candle` 타입으로 데이터 정규화 (`convertToCommonCandles`)
+- `next: { revalidate: 10 }`으로 10초마다 자동 재검증
+
+**실시간 데이터**:
+- Bithumb만 WebSocket 지원 (`useBithumbWebSocket` 훅)
+- Upbit/Binance는 수동 새로고침 또는 폴링 방식
+
+### 시간대 처리 규칙
+
+**한국 표준시(KST) 필수**:
+- 모든 시간 표시는 `toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' })` 사용
+- 마지막 업데이트 시간에 "KST" 명시
+- 차트 데이터의 타임스탬프는 UTC → KST 변환 필요
 
 ### 인증 플로우
 
@@ -122,20 +161,85 @@ done
 
 ### 컴포넌트 아키텍처
 
-**레이아웃 컴포넌트**:
-- `AppLayout`: 인증 + 네비게이션을 포함한 중앙 집중식 레이아웃
-- `Navigation`: 사용자 정보와 로그아웃이 포함된 반응형 네비게이션
+**3계층 컴포넌트 구조**:
 
-**UI 컴포넌트** (`src/components/ui/`):
-- 재사용 가능한 원자 컴포넌트: `Button`, `Input`, `Card`
-- variant와 size props로 일관된 스타일링
-- 모든 컴포넌트는 Tailwind 테마 컬러 사용
-- **중요**: 새로운 UI 요소 필요 시 이 폴더에 공통 컴포넌트로 생성
+1. **레이아웃 컴포넌트** (`src/components/`):
+   - `AppLayout`: 인증 + 네비게이션을 포함한 중앙 집중식 레이아웃
+   - `Navigation`: 사용자 정보와 로그아웃이 포함된 반응형 네비게이션
 
-**페이지별 컴포넌트**:
-- 페이지 디렉토리에 위치 (예: `/app/my-page/ProfileCard.tsx`)
-- **반드시** `src/components/ui/`의 공통 컴포넌트를 사용하여 구성
-- 페이지에만 특화된 로직이 있을 때만 별도 컴포넌트 생성
+2. **UI 컴포넌트** (`src/components/ui/`):
+   - 재사용 가능한 원자 컴포넌트: `Button`, `Input`, `Card`, `Tooltip`, `StatCard`
+   - variant와 size props로 일관된 스타일링
+   - 모든 컴포넌트는 Tailwind 테마 컬러 사용
+   - **중요**: 새로운 UI 요소 필요 시 이 폴더에 공통 컴포넌트로 생성
+
+3. **공통 비즈니스 컴포넌트** (`src/components/common/`):
+   - `ExchangeSelector`: 거래소 선택 및 자동 갱신 제어
+   - `ChartControls`: 차트 시간대/기간 제어
+   - `ChartElements`: 차트 관련 UI 요소
+   - `IndicatorValueGrid`: 기술 지표 값 표시 그리드
+   - `IndicatorChartWrapper`: 지표 차트 래퍼
+   - `UserTypeBadge`: 사용자 타입 뱃지
+   - **특징**: 여러 페이지에서 공통으로 사용되는 비즈니스 로직 포함 컴포넌트
+
+4. **도메인별 컴포넌트** (`src/components/{domain}/`):
+   - `market/CoinCard`, `market/CoinList`: 마켓 페이지 전용
+   - **규칙**: 특정 도메인에서만 사용되는 컴포넌트
+
+5. **페이지별 컴포넌트**:
+   - 페이지 디렉토리에 위치 (예: `/app/my-page/ProfileCard.tsx`)
+   - **반드시** `ui/`와 `common/` 컴포넌트를 조합하여 구성
+   - 해당 페이지에만 특화된 로직이 있을 때만 별도 컴포넌트 생성
+
+**컴포넌트 선택 가이드**:
+- UI 요소만 필요 → `ui/` 사용
+- 비즈니스 로직 포함된 공통 기능 → `common/` 확인 후 재사용
+- 여러 페이지에서 재사용 가능 → `common/`에 생성
+- 특정 도메인 전용 → `{domain}/`에 생성
+- 한 페이지에서만 사용 → 페이지 디렉토리에 생성
+
+### 커스텀 훅 패턴
+
+**데이터 관리 훅** (`src/hooks/`):
+
+1. **`useExchangeData`**: 거래소 데이터 통합 관리
+   - 거래소별 API 호출 통합
+   - 로딩 상태, 에러 처리
+   - 자동 새로고침 제어
+
+2. **`useBithumbWebSocket`**: Bithumb WebSocket 실시간 연결
+   - 연결 상태 관리 (`connecting`, `connected`, `disconnected`, `error`)
+   - 자동 재연결 로직
+   - 갱신 간격 제어 (1초, 3초, 5초, 10초)
+
+3. **`useCandleData`**: 캔들 차트 데이터 관리
+   - 시간대/기간별 데이터 요청
+   - 캔들 데이터 정규화
+   - 캐싱 및 재검증
+
+**훅 사용 원칙**:
+- 거래소 API 직접 호출 대신 훅 사용
+- 상태 관리와 비즈니스 로직을 훅에 캡슐화
+- 컴포넌트는 UI 렌더링에만 집중
+
+### 기술 지표 시스템
+
+**지표 계산** (`src/lib/indicators/calculator.ts`):
+- `technicalindicators` 라이브러리 사용
+- 지원 지표: RSI, MACD, Bollinger Bands, 이동평균, 스토캐스틱 등
+- 입력: 캔들 데이터 배열
+- 출력: 지표별 계산 결과
+
+**차트 통합**:
+- Lightweight Charts: 메인 가격 차트
+- Recharts: 지표 차트 및 보조 차트
+- 차트 타임프레임: `'30m' | '1h' | '2h' | '4h' | '1d'`
+- 분석 기간: `'1M' | '3M' | '6M' | '1Y' | '2Y' | '3Y'`
+
+**구현 우선순위** (`.docs/20250114_tradingview_indicators.md` 참조):
+- Phase 1: SMA, EMA, RSI, Volume, MACD
+- Phase 2: Bollinger Bands, VWAP, ATR, Stochastic, 이격도
+- Phase 3: Ichimoku Cloud, Volume Profile, Fibonacci, Pivot Points
 
 ### TypeScript 경로 별칭
 
@@ -143,6 +247,7 @@ done
 ```typescript
 import { createClient } from '@/lib/supabase/server'
 import Button from '@/components/ui/Button'
+import { useExchangeData } from '@/hooks/useExchangeData'
 ```
 
 ### 스타일링 시스템

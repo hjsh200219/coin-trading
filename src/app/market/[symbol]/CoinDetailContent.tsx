@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { CoinDisplayInfo } from '@/lib/bithumb/types'
-import type { TimeFrame, Period } from '@/types/chart'
+import type { TimeFrame, Period, Exchange } from '@/types/chart'
 import TickerInfoSection from './TickerInfoSection'
 import ChartControls from '@/components/common/ChartControls'
 import CandlestickChart from './CandlestickChart'
@@ -14,6 +14,7 @@ interface CoinDetailContentProps {
 }
 
 export default function CoinDetailContent({ coin }: CoinDetailContentProps) {
+  const [exchange, setExchange] = useState<Exchange>('bithumb')
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1h')
   const [period, setPeriod] = useState<Period>('1M')
   const [baseDate, setBaseDate] = useState<Date>(new Date())
@@ -37,6 +38,7 @@ export default function CoinDetailContent({ coin }: CoinDetailContentProps) {
   const { data: rawCandles, isLoading, error } = useCandleData({
     symbol: coin.symbol,
     timeFrame,
+    exchange,
     limit: getLimitByPeriod(period),
     enabled: true,
   })
@@ -86,11 +88,13 @@ export default function CoinDetailContent({ coin }: CoinDetailContentProps) {
       {/* 시세 정보 섹션 */}
       <TickerInfoSection coin={coin} />
 
-      {/* 차트 컨트롤 (타임프레임 및 기간 선택) */}
+      {/* 차트 컨트롤 (거래소, 타임프레임 및 기간 선택) */}
       <ChartControls
+        onExchangeChange={setExchange}
         onTimeFrameChange={setTimeFrame}
         onPeriodChange={setPeriod}
         onBaseDateChange={setBaseDate}
+        showExchange={true}
       />
 
       {/* 에러 표시 */}

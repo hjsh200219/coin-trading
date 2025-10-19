@@ -2,48 +2,38 @@
 
 import { useState } from 'react'
 import { Card } from '@/components/ui/Card'
-import Button from '@/components/ui/Button'
-import type { TimeFrame, Period } from '@/types/chart'
+import { PeriodSelector, TimeFrameSelector, ExchangeSelector } from '@/components/ui'
+import type { TimeFrame, Period, Exchange } from '@/types/chart'
 
 interface ChartControlsProps {
   onTimeFrameChange?: (timeFrame: TimeFrame) => void
   onPeriodChange?: (period: Period) => void
   onBaseDateChange?: (date: Date) => void
+  onExchangeChange?: (exchange: Exchange) => void
   defaultTimeFrame?: TimeFrame
   defaultPeriod?: Period
   defaultBaseDate?: Date
+  defaultExchange?: Exchange
+  showExchange?: boolean
 }
 
 export default function ChartControls({
   onTimeFrameChange,
   onPeriodChange,
   onBaseDateChange,
+  onExchangeChange,
   defaultTimeFrame = '1h',
   defaultPeriod = '1M',
   defaultBaseDate = new Date(),
+  defaultExchange = 'bithumb',
+  showExchange = false,
 }: ChartControlsProps) {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>(defaultTimeFrame)
   const [period, setPeriod] = useState<Period>(defaultPeriod)
+  const [exchange, setExchange] = useState<Exchange>(defaultExchange)
   const [baseDate, setBaseDate] = useState<string>(
     defaultBaseDate.toISOString().split('T')[0]
   )
-
-  const timeFrames: { value: TimeFrame; label: string }[] = [
-    { value: '30m', label: '30분' },
-    { value: '1h', label: '1시간' },
-    { value: '2h', label: '2시간' },
-    { value: '4h', label: '4시간' },
-    { value: '1d', label: '1일' },
-  ]
-
-  const periods: { value: Period; label: string }[] = [
-    { value: '1M', label: '1개월' },
-    { value: '3M', label: '3개월' },
-    { value: '6M', label: '6개월' },
-    { value: '1Y', label: '1년' },
-    { value: '2Y', label: '2년' },
-    { value: '3Y', label: '3년' },
-  ]
 
   const handleTimeFrameChange = (newTimeFrame: TimeFrame) => {
     setTimeFrame(newTimeFrame)
@@ -60,11 +50,31 @@ export default function ChartControls({
     onBaseDateChange?.(new Date(dateString))
   }
 
+  const handleExchangeChange = (newExchange: Exchange) => {
+    setExchange(newExchange)
+    onExchangeChange?.(newExchange)
+  }
+
   return (
     <Card className="p-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        {/* 왼쪽: 기준 날짜 + 조회 기간 */}
+        {/* 왼쪽: 거래소 (선택적) + 기준 날짜 + 조회 기간 */}
         <div className="flex items-center gap-3 flex-wrap">
+          {/* 거래소 선택 (선택적) */}
+          {showExchange && (
+            <>
+              <ExchangeSelector
+                value={exchange}
+                onChange={handleExchangeChange}
+                label="거래소"
+                showLabel
+                size="sm"
+              />
+              {/* 구분선 */}
+              <div className="hidden md:block w-px h-6 bg-border" />
+            </>
+          )}
+
           {/* 기준 날짜 */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">기준</span>
@@ -84,43 +94,24 @@ export default function ChartControls({
           <div className="hidden md:block w-px h-6 bg-border" />
 
           {/* 조회 기간 */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">기간</span>
-            <div className="flex gap-1">
-              {periods.map((p) => (
-                <Button
-                  key={p.value}
-                  onClick={() => handlePeriodChange(p.value)}
-                  variant={period === p.value ? 'primary' : 'outline'}
-                  size="sm"
-                  className="px-2 py-0.5 text-xs h-7 min-w-[42px]"
-                >
-                  {p.label}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <PeriodSelector
+            value={period}
+            onChange={handlePeriodChange}
+            label="기간"
+            showLabel
+            size="sm"
+          />
         </div>
 
         {/* 오른쪽: 타임프레임 */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">타임프레임</span>
-          <div className="flex gap-1">
-            {timeFrames.map((tf) => (
-              <Button
-                key={tf.value}
-                onClick={() => handleTimeFrameChange(tf.value)}
-                variant={timeFrame === tf.value ? 'primary' : 'outline'}
-                size="sm"
-                className="px-2 py-0.5 text-xs h-7 min-w-[42px]"
-              >
-                {tf.label}
-              </Button>
-            ))}
-          </div>
-        </div>
+        <TimeFrameSelector
+          value={timeFrame}
+          onChange={handleTimeFrameChange}
+          label="타임프레임"
+          showLabel
+          size="sm"
+        />
       </div>
     </Card>
   )
 }
-

@@ -102,7 +102,7 @@ export function calculateAO(
 }
 
 /**
- * 이격도 (Disparity Index) 계산
+ * Disparity Index 계산
  * indicator.md: 100 * (close - xEMA) / xEMA
  */
 export interface DisparityResult {
@@ -126,7 +126,7 @@ export function calculateDisparity(
     period,
   })
 
-  // 이격도 = 100 * (현재가 - EMA) / EMA
+  // Dispariy = 100 * (현재가 - EMA) / EMA
   const disparityValues: number[] = []
   const offset = period - 1
 
@@ -143,7 +143,7 @@ export function calculateDisparity(
 }
 
 /**
- * 복수 기간 이격도 계산
+ * 복수 기간 Dispariy 계산
  */
 export function calculateMultipleDisparity(
   candles: Candle[],

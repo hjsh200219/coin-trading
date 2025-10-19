@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Candle } from '@/lib/bithumb/types'
-import type { TimeFrame } from '@/types/chart'
+import type { TimeFrame, Exchange } from '@/types/chart'
 
 interface UseCandleDataOptions {
   symbol: string
   timeFrame: TimeFrame
+  exchange?: Exchange
   limit?: number
   enabled?: boolean
 }
@@ -19,6 +20,7 @@ interface UseCandleDataReturn {
 export function useCandleData({
   symbol,
   timeFrame,
+  exchange = 'bithumb',
   limit = 200,
   enabled = true,
 }: UseCandleDataOptions): UseCandleDataReturn {
@@ -33,7 +35,9 @@ export function useCandleData({
       setIsLoading(true)
       setError(null)
 
-      const url = `/api/market/candles/${symbol}?timeFrame=${timeFrame}&limit=${limit}`
+      // 거래소별 API 엔드포인트 선택
+      const apiPath = exchange === 'bithumb' ? 'market' : exchange
+      const url = `/api/${apiPath}/candles/${symbol}?timeFrame=${timeFrame}&limit=${limit}`
       const response = await fetch(url)
 
       if (!response.ok) {
@@ -53,7 +57,7 @@ export function useCandleData({
     } finally {
       setIsLoading(false)
     }
-  }, [symbol, timeFrame, limit, enabled])
+  }, [symbol, timeFrame, exchange, limit, enabled])
 
   useEffect(() => {
     fetchData()

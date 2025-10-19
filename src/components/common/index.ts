@@ -20,3 +20,6 @@ export {
 export { default as UserTypeBadge } from './UserTypeBadge'
 export type { UserTypeBadgeProps } from './UserTypeBadge'
 
+export { default as RankingControls } from './RankingControls'
+export { default as RankingResultTable } from './RankingResultTable'
+
