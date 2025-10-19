@@ -61,6 +61,25 @@ for port in 3000 3001 3002 4000 5000 5173 8000 8080 8081 9000; do
 done
 ```
 
+## Git 워크플로우
+
+### "git push" 자동화 규칙
+사용자가 **"git push"** 또는 **"push"**라고 입력하면:
+1. **자동으로 다음 작업 수행**:
+   - `git add .` - 모든 변경사항 스테이징
+   - `git commit -m "적절한 커밋 메시지"` - 의미 있는 커밋 메시지로 커밋
+   - `git push` - 원격 저장소에 push
+
+2. **커밋 메시지 작성 규칙**:
+   - 변경사항을 분석하여 명확하고 구조화된 커밋 메시지 자동 생성
+   - 형식: `feat:`, `fix:`, `refactor:`, `docs:` 등의 접두사 사용
+   - 주요 변경사항을 bullet point로 정리
+
+3. **주의사항**:
+   - 사용자 확인 없이 자동으로 진행
+   - 커밋 전 lint, tsc, build 체크는 이미 완료된 것으로 가정
+   - 에러 발생 시 사용자에게 보고
+
 ## 아키텍처 개요
 
 ### 기술 스택
@@ -238,7 +257,7 @@ src/lib/
 
 **구현 우선순위** (`.docs/20250114_tradingview_indicators.md` 참조):
 - Phase 1: SMA, EMA, RSI, Volume, MACD
-- Phase 2: Bollinger Bands, VWAP, ATR, Stochastic, 이격도
+- Phase 2: Bollinger Bands, VWAP, ATR, Stochastic, Dispariy
 - Phase 3: Ichimoku Cloud, Volume Profile, Fibonacci, Pivot Points
 
 ### TypeScript 경로 별칭
