@@ -424,6 +424,40 @@ export default function TradingSimulationContent({
                 />
               </div>
 
+              {/* 모바일: 임계값 표시 */}
+              <div className="md:hidden space-y-1">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-medium text-foreground/70 whitespace-nowrap">임계값 표시</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setDecimalPlaces(2)}
+                      className={`px-3 py-1 rounded transition ${
+                        decimalPlaces === 2
+                          ? 'bg-brand text-background font-medium'
+                          : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                      }`}
+                    >
+                      소수점 2자리
+                    </button>
+                    <button
+                      onClick={() => setDecimalPlaces(3)}
+                      className={`px-3 py-1 rounded transition ${
+                        decimalPlaces === 3
+                          ? 'bg-brand text-background font-medium'
+                          : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                      }`}
+                    >
+                      소수점 3자리
+                    </button>
+                  </div>
+                </div>
+                {decimalPlaces === 3 && (
+                  <p className="text-[10px] text-foreground/50 pl-1">
+                    * 소수점 3자리는 최대 0.2 구간으로 제한됩니다
+                  </p>
+                )}
+              </div>
+
               {/* 데스크톱: 한 줄로 표시 */}
               <div className="hidden md:flex items-center gap-3 flex-wrap">
                 {/* 매수 조건 */}
@@ -508,16 +542,17 @@ export default function TradingSimulationContent({
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
                 </div>
-              </div>
 
-              {/* 결과 표시 설정 */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="font-medium text-foreground/70 whitespace-nowrap">임계값 표시</span>
+                {/* 구분선 */}
+                <div className="w-px h-6 bg-border" />
+
+                {/* 임계값 표시 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">임계값 표시</span>
                   <div className="flex gap-1">
                     <button
                       onClick={() => setDecimalPlaces(2)}
-                      className={`px-3 py-1 rounded transition ${
+                      className={`px-2 py-1 rounded transition text-xs ${
                         decimalPlaces === 2
                           ? 'bg-brand text-background font-medium'
                           : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
@@ -527,7 +562,7 @@ export default function TradingSimulationContent({
                     </button>
                     <button
                       onClick={() => setDecimalPlaces(3)}
-                      className={`px-3 py-1 rounded transition ${
+                      className={`px-2 py-1 rounded transition text-xs ${
                         decimalPlaces === 3
                           ? 'bg-brand text-background font-medium'
                           : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
@@ -537,12 +572,16 @@ export default function TradingSimulationContent({
                     </button>
                   </div>
                 </div>
-                {decimalPlaces === 3 && (
+              </div>
+
+              {/* 소수점 3자리 안내 (데스크톱) */}
+              {decimalPlaces === 3 && (
+                <div className="hidden md:block">
                   <p className="text-[10px] text-foreground/50 pl-1">
                     * 소수점 3자리는 최대 0.2 구간으로 제한됩니다
                   </p>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
