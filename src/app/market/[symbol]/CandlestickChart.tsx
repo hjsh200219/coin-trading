@@ -37,6 +37,12 @@ export default function CandlestickChart({
   const [showMA60, setShowMA60] = useState(false)
   const [showMA120, setShowMA120] = useState(false)
 
+  // 자간(letter-spacing) 100% 효과: 글자 사이에 공백 추가
+  const applyLetterSpacing = (text: string) => text.split('').join(' ')
+  // 라벨/숫자 자간을 더 넓게 (두 칸 공백)
+  const applyWideLetterSpacing = (text: string) => text.split('').join('  ')
+  const applyWideNumberSpacing = (numText: string) => numText.split('').join('  ')
+
   useEffect(() => {
     if (!chartContainerRef.current || isLoading) return
 
@@ -77,15 +83,15 @@ export default function CandlestickChart({
       },
       localization: {
         timeFormatter: (timestamp: number) => {
-          // Unix 타임스탬프(초)를 KST로 변환하여 표시
-          const date = new Date(timestamp * 1000)
-          const month = String(date.getMonth() + 1).padStart(2, '0')
-          const day = String(date.getDate()).padStart(2, '0')
-          const hour = String(date.getHours()).padStart(2, '0')
-          const minute = String(date.getMinutes()).padStart(2, '0')
-          
-          // 날짜와 시간 사이에 공백 2개로 가독성 향상
-          return `${month}/${day}  ${hour}:${minute}`
+          // Unix 타임스탬프(초)를 KST로 변환하여 표시 + 자간 적용
+          const base = new Date(timestamp * 1000).toLocaleString('ko-KR', {
+            timeZone: 'Asia/Seoul',
+            hour: '2-digit',
+            minute: '2-digit',
+            month: '2-digit',
+            day: '2-digit',
+          })
+          return applyLetterSpacing(base)
         },
       },
     })
@@ -225,25 +231,25 @@ export default function CandlestickChart({
       const maxPrice = Math.max(...formattedData.map(d => d.high))
       const minPrice = Math.min(...formattedData.map(d => d.low))
       
-      // 최고가 수평선 추가
+      // 최고가 수평선 추가 (라벨/숫자 자간 더 넓게 적용)
       const maxPriceLine = series.createPriceLine({
         price: maxPrice,
         color: '#ef4444',
         lineWidth: 1,
         lineStyle: 2, // 점선
         axisLabelVisible: true,
-        title: `최고가: ${maxPrice.toLocaleString()}`,
+        title: `${applyWideLetterSpacing('최고가')}: ${applyWideNumberSpacing(maxPrice.toLocaleString())}`,
       })
       priceLineRefs.current.push(maxPriceLine)
       
-      // 최저가 수평선 추가
+      // 최저가 수평선 추가 (라벨/숫자 자간 더 넓게 적용)
       const minPriceLine = series.createPriceLine({
         price: minPrice,
         color: '#3b82f6',
         lineWidth: 1,
         lineStyle: 2, // 점선
         axisLabelVisible: true,
-        title: `최저가: ${minPrice.toLocaleString()}`,
+        title: `${applyWideLetterSpacing('최저가')}: ${applyWideNumberSpacing(minPrice.toLocaleString())}`,
       })
       priceLineRefs.current.push(minPriceLine)
       
