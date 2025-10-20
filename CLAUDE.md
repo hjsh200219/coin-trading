@@ -257,7 +257,7 @@ src/lib/
 
 **구현 우선순위** (`.docs/20250114_tradingview_indicators.md` 참조):
 - Phase 1: SMA, EMA, RSI, Volume, MACD
-- Phase 2: Bollinger Bands, VWAP, ATR, Stochastic, Disparity
+- Phase 2: Bollinger Bands, VWAP, ATR, Stochastic, DP
 - Phase 3: Ichimoku Cloud, Volume Profile, Fibonacci, Pivot Points
 
 ### TypeScript 경로 별칭

@@ -19,7 +19,7 @@ export default function RankingAnalysisContent({ symbol }: RankingAnalysisConten
     macd: true,
     rsi: true,
     ao: true,
-    disparity: true,
+    DP: true,
     rti: true,
   })
   const [rankingData, setRankingData] = useState<RankingDataPoint[]>([])

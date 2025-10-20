@@ -3,7 +3,7 @@
  * 2시간 봉 기반의 5분 간격 매매 시뮬레이션
  */
 
-import { calculateRSI, calculateMACD, calculateAO, calculateDisparity, calculateRTI } from '@/lib/indicators/calculator'
+import { calculateRSI, calculateMACD, calculateAO, calculateDP, calculateRTI } from '@/lib/indicators/calculator'
 import type { Candle } from '@/lib/bithumb/types'
 
 export interface CandleData {
@@ -60,7 +60,7 @@ export function generate5MinCandles(
  */
 export function calculateIndicatorValue(
   candles: CandleData[],
-  indicatorType: 'RTI' | 'AO' | 'MACD' | 'RSI' | 'Disparity'
+  indicatorType: 'RTI' | 'AO' | 'MACD' | 'RSI' | 'DP'
 ): number {
   if (candles.length === 0) return 0
 
@@ -90,10 +90,10 @@ export function calculateIndicatorValue(
         const aoValues = calculateAO(candleData)
         return aoValues && aoValues.length > 0 ? aoValues[aoValues.length - 1] : 0
       }
-      case 'Disparity': {
-        const disparityResult = calculateDisparity(candleData)
-        return disparityResult && disparityResult.values.length > 0 
-          ? disparityResult.values[disparityResult.values.length - 1] 
+      case 'DP': {
+        const DPResult = calculateDP(candleData)
+        return DPResult && DPResult.values.length > 0 
+          ? DPResult.values[DPResult.values.length - 1] 
           : 0
       }
       case 'RTI': {

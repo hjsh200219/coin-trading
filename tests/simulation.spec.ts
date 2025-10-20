@@ -18,7 +18,7 @@ test.describe('Trading Simulation Verification', () => {
     const exchangeSelector = page.locator('select').first()
     await expect(exchangeSelector).toBeVisible()
     
-    // 분석 지표 체크박스 확인
+    // 지표 체크박스 확인
     const rsiCheckbox = page.getByText('RSI').locator('..')
     await expect(rsiCheckbox).toBeVisible()
     
@@ -41,7 +41,7 @@ test.describe('Trading Simulation Verification', () => {
     const exchangeSelector = page.locator('select').first()
     await exchangeSelector.selectOption('bithumb')
     
-    // 2. 분석 지표 선택 (RTI만)
+    // 2. 지표 선택 (RTI만)
     const rtiCheckbox = page.getByText('RTI')
     await rtiCheckbox.click()
     

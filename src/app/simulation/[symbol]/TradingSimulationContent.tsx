@@ -25,7 +25,7 @@ export default function TradingSimulationContent({
     macd: true,
     rsi: true,
     ao: true,
-    disparity: true,
+    DP: true,
     rti: true,
   })
   
@@ -241,7 +241,7 @@ export default function TradingSimulationContent({
             buyThresholdMax,
             sellThresholdMin,
             sellThresholdMax,
-            indicators // 분석 지표 설정 추가 ✨
+            indicators // 지표 설정 추가 ✨
           }
         })
       } else {
@@ -334,10 +334,10 @@ export default function TradingSimulationContent({
               onIndicatorToggle={handleIndicatorToggle}
             />
 
-            {/* 3행: 매수 조건 + 매수 임계값 + 매도 조건 + 매도 임계값 */}
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* 매수 조건 */}
-              <div className="flex items-center gap-1.5">
+            {/* 3행: 시뮬레이션 설정 */}
+            <div className="space-y-2 md:space-y-0">
+              {/* 모바일: 매수 조건 */}
+              <div className="md:hidden flex items-center gap-1.5">
                 <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매수 조건</span>
                 <input
                   type="number"
@@ -349,11 +349,8 @@ export default function TradingSimulationContent({
                 />
               </div>
 
-              {/* 구분선 */}
-              <div className="hidden md:block w-px h-6 bg-border" />
-
-              {/* 매수 임계값 범위 */}
-              <div className="flex items-center gap-1.5">
+              {/* 모바일: 매수 임계값 범위 */}
+              <div className="md:hidden flex items-center gap-1.5">
                 <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매수 임계값</span>
                 <input
                   type="number"
@@ -376,11 +373,8 @@ export default function TradingSimulationContent({
                 />
               </div>
 
-              {/* 구분선 */}
-              <div className="hidden md:block w-px h-6 bg-border" />
-
-              {/* 매도 조건 */}
-              <div className="flex items-center gap-1.5">
+              {/* 모바일: 매도 조건 */}
+              <div className="md:hidden flex items-center gap-1.5">
                 <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매도 조건</span>
                 <input
                   type="number"
@@ -392,11 +386,8 @@ export default function TradingSimulationContent({
                 />
               </div>
 
-              {/* 구분선 */}
-              <div className="hidden md:block w-px h-6 bg-border" />
-
-              {/* 매도 임계값 범위 */}
-              <div className="flex items-center gap-1.5">
+              {/* 모바일: 매도 임계값 범위 */}
+              <div className="md:hidden flex items-center gap-1.5">
                 <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매도 임계값</span>
                 <input
                   type="number"
@@ -417,6 +408,92 @@ export default function TradingSimulationContent({
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
+              </div>
+
+              {/* 데스크톱: 한 줄로 표시 */}
+              <div className="hidden md:flex items-center gap-3 flex-wrap">
+                {/* 매수 조건 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매수 조건</span>
+                  <input
+                    type="number"
+                    value={buyConditionCount}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyConditionCount(Number(e.target.value))}
+                    min={1}
+                    max={10}
+                    className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
+                  />
+                </div>
+
+                {/* 구분선 */}
+                <div className="w-px h-6 bg-border" />
+
+                {/* 매수 임계값 범위 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매수 임계값</span>
+                  <input
+                    type="number"
+                    value={buyThresholdMin}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMin(Number(e.target.value))}
+                    min={0.3}
+                    max={0.8}
+                    step={0.1}
+                    className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
+                  />
+                  <span className="text-xs text-foreground/50">~</span>
+                  <input
+                    type="number"
+                    value={buyThresholdMax}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMax(Number(e.target.value))}
+                    min={0.3}
+                    max={0.8}
+                    step={0.1}
+                    className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
+                  />
+                </div>
+
+                {/* 구분선 */}
+                <div className="w-px h-6 bg-border" />
+
+                {/* 매도 조건 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매도 조건</span>
+                  <input
+                    type="number"
+                    value={sellConditionCount}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellConditionCount(Number(e.target.value))}
+                    min={1}
+                    max={10}
+                    className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
+                  />
+                </div>
+
+                {/* 구분선 */}
+                <div className="w-px h-6 bg-border" />
+
+                {/* 매도 임계값 범위 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매도 임계값</span>
+                  <input
+                    type="number"
+                    value={sellThresholdMin}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMin(Number(e.target.value))}
+                    min={0.3}
+                    max={0.8}
+                    step={0.1}
+                    className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
+                  />
+                  <span className="text-xs text-foreground/50">~</span>
+                  <input
+                    type="number"
+                    value={sellThresholdMax}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMax(Number(e.target.value))}
+                    min={0.3}
+                    max={0.8}
+                    step={0.1}
+                    className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
+                  />
+                </div>
               </div>
             </div>
           </div>

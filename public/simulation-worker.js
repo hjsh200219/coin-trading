@@ -17,7 +17,7 @@ self.onmessage = function(e) {
         buyThresholdMax,
         sellThresholdMin,
         sellThresholdMax,
-        indicators // 분석 지표 설정 ✨
+        indicators // 지표 설정 ✨
       } = data
 
       console.log('Worker received indicators:', indicators)
@@ -154,9 +154,9 @@ function calculateAO(candles) {
 }
 
 /**
- * Disparity 계산
+ * DP 계산
  */
-function calculateDisparity(candles, period = 20) {
+function calculateDP(candles, period = 20) {
   if (candles.length < period) return 0
   
   try {
@@ -170,10 +170,10 @@ function calculateDisparity(candles, period = 20) {
     }
     const ma = sum / period
     
-    // Disparity = ((현재가 - MA) / MA) * 100
-    const disparity = ((currentPrice - ma) / ma) * 100
+    // DP = ((현재가 - MA) / MA) * 100
+    const DP = ((currentPrice - ma) / ma) * 100
     
-    return disparity
+    return DP
   } catch (error) {
     return 0
   }
@@ -217,9 +217,9 @@ function calculateRankingValue(candles, indicators) {
       activeCount++
     }
     
-    if (indicators.disparity) {
-      const disparityValue = calculateDisparity(candles, 20)
-      totalValue += disparityValue
+    if (indicators.DP) {
+      const DPValue = calculateDP(candles, 20)
+      totalValue += DPValue
       activeCount++
     }
     

@@ -31,7 +31,7 @@ export default function RankingResultTable({ data }: RankingResultTableProps) {
         sortedData[0].macd !== null,
         sortedData[0].rsi !== null,
         sortedData[0].ao !== null,
-        sortedData[0].disparity !== null,
+        sortedData[0].DP !== null,
         sortedData[0].rti !== null,
       ].filter(Boolean).length
     : 0
@@ -67,7 +67,7 @@ export default function RankingResultTable({ data }: RankingResultTableProps) {
                 AO
               </TableCell>
               <TableCell header align="center">
-                Disparity
+                DP
               </TableCell>
               <TableCell header align="center">
                 RTI
@@ -113,9 +113,9 @@ export default function RankingResultTable({ data }: RankingResultTableProps) {
                   )}
                 </TableCell>
                 <TableCell align="right">
-                  {item.disparity !== null ? (
-                    <span className={getValueColorClass(item.disparity)}>
-                      {formatNumber(item.disparity, 2)}%
+                  {item.DP !== null ? (
+                    <span className={getValueColorClass(item.DP)}>
+                      {formatNumber(item.DP, 2)}%
                     </span>
                   ) : (
                     <span className="text-foreground/30">-</span>

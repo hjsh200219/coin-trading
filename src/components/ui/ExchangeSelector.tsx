@@ -13,9 +13,9 @@ interface ExchangeSelectorProps {
 }
 
 const EXCHANGE_OPTIONS: ButtonGroupOption<Exchange>[] = [
-  { value: 'bithumb', label: '빗썸' },
-  { value: 'upbit', label: '업비트' },
-  { value: 'binance', label: '바이낸스' },
+  { value: 'bithumb', label: 'Bithumb' },
+  { value: 'upbit', label: 'Upbit' },
+  { value: 'binance', label: 'Binance' },
 ]
 
 export default function ExchangeSelector({

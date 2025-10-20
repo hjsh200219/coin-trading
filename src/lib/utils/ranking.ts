@@ -6,7 +6,7 @@ import {
   calculateMACD,
   calculateRSI,
   calculateAO,
-  calculateDisparity,
+  calculateDP,
   calculateRTI,
 } from '@/lib/indicators/calculator'
 
@@ -42,7 +42,7 @@ function calculateZScore(value: number, mean: number, stdDev: number): number {
 
 /**
  * Ranking Value 계산
- * - 5개의 보조지표(MACD, RSI, AO, Disparity, RTI)를 기반으로 Z-score 합산
+ * - 5개의 보조지표(MACD, RSI, AO, DP, RTI)를 기반으로 Z-score 합산
  * - baseDate와 period를 기준으로 데이터 필터링
  * - indicatorConfig로 사용할 지표 선택
  */
@@ -74,13 +74,13 @@ export function calculateRankingValues(
   const macdResult = indicatorConfig.macd ? calculateMACD(filteredCandles) : null
   const rsiResult = indicatorConfig.rsi ? calculateRSI(filteredCandles) : null
   const aoResult = indicatorConfig.ao ? calculateAO(filteredCandles) : null
-  const disparityResult = indicatorConfig.disparity
-    ? calculateDisparity(filteredCandles, 20)
+  const DPResult = indicatorConfig.DP
+    ? calculateDP(filteredCandles, 20)
     : null
   const rtiResult = indicatorConfig.rti ? calculateRTI(filteredCandles) : null
 
   // 모든 지표가 null이면 빈 배열 반환
-  if (!macdResult && !rsiResult && !aoResult && !disparityResult && !rtiResult) {
+  if (!macdResult && !rsiResult && !aoResult && !DPResult && !rtiResult) {
     return []
   }
 
@@ -89,7 +89,7 @@ export function calculateRankingValues(
     macdResult?.histogram.length,
     rsiResult?.length,
     aoResult?.length,
-    disparityResult?.values.length,
+    DPResult?.values.length,
     rtiResult?.rti.length,
   ].filter((len): len is number => len !== undefined)
 
@@ -105,8 +105,8 @@ export function calculateRankingValues(
     : null
   const rsiValues = rsiResult ? rsiResult.slice(rsiResult.length - minLength) : null
   const aoValues = aoResult ? aoResult.slice(aoResult.length - minLength) : null
-  const disparityValues = disparityResult
-    ? disparityResult.values.slice(disparityResult.values.length - minLength)
+  const DPValues = DPResult
+    ? DPResult.values.slice(DPResult.values.length - minLength)
     : null
   const rtiValues = rtiResult ? rtiResult.rti.slice(rtiResult.rti.length - minLength) : null
 
@@ -120,8 +120,8 @@ export function calculateRankingValues(
   const aoAvg = aoValues ? calculateAverage(aoValues) : 0
   const aoStd = aoValues ? calculateStdDevP(aoValues) : 1
 
-  const disparityAvg = disparityValues ? calculateAverage(disparityValues) : 0
-  const disparityStd = disparityValues ? calculateStdDevP(disparityValues) : 1
+  const DPAvg = DPValues ? calculateAverage(DPValues) : 0
+  const DPStd = DPValues ? calculateStdDevP(DPValues) : 1
 
   const rtiAvg = rtiValues ? calculateAverage(rtiValues) : 0
   const rtiStd = rtiValues ? calculateStdDevP(rtiValues) : 1
@@ -139,8 +139,8 @@ export function calculateRankingValues(
     if (aoValues) {
       rankingValue += calculateZScore(aoValues[i], aoAvg, aoStd)
     }
-    if (disparityValues) {
-      rankingValue += calculateZScore(disparityValues[i], disparityAvg, disparityStd)
+    if (DPValues) {
+      rankingValue += calculateZScore(DPValues[i], DPAvg, DPStd)
     }
     if (rtiValues) {
       rankingValue += calculateZScore(rtiValues[i], rtiAvg, rtiStd)
@@ -151,7 +151,7 @@ export function calculateRankingValues(
       macd: macdValues ? macdValues[i] : null,
       rsi: rsiValues ? rsiValues[i] : null,
       ao: aoValues ? aoValues[i] : null,
-      disparity: disparityValues ? disparityValues[i] : null,
+      DP: DPValues ? DPValues[i] : null,
       rti: rtiValues ? rtiValues[i] : null,
       rankingValue,
     }

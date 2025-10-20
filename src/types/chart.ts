@@ -16,7 +16,7 @@ export interface RankingDataPoint {
   macd: number | null // MACD 값
   rsi: number | null // RSI 값
   ao: number | null // Awesome Oscillator 값
-  disparity: number | null // Disparity 값
+  DP: number | null // DP 값
   rti: number | null // RTI 값
   rankingValue: number // 계산된 랭킹 값
 }
@@ -26,7 +26,7 @@ export interface IndicatorConfig {
   macd: boolean
   rsi: boolean
   ao: boolean
-  disparity: boolean
+  DP: boolean
   rti: boolean
 }
 

@@ -6,7 +6,7 @@ import {
   calculateMACD,
   calculateRSI,
   calculateAO,
-  calculateMultipleDisparity,
+  calculateMultipleDP,
   calculateRTI,
 } from '@/lib/indicators/calculator'
 import MACDChart from './MACDChart'
@@ -24,7 +24,7 @@ export default function IndicatorSection({ candles }: IndicatorSectionProps) {
     macd: true,
     rsi: true,
     ao: true,
-    disparity: true,
+    DP: true,
     rti: true,
   })
 
@@ -32,8 +32,8 @@ export default function IndicatorSection({ candles }: IndicatorSectionProps) {
   const macd = enabledIndicators.macd ? calculateMACD(candles) : null
   const rsi = enabledIndicators.rsi ? calculateRSI(candles) : null
   const ao = enabledIndicators.ao ? calculateAO(candles) : null
-  const disparity = enabledIndicators.disparity
-    ? calculateMultipleDisparity(candles, [20, 60, 120])
+  const DP = enabledIndicators.DP
+    ? calculateMultipleDP(candles, [20, 60, 120])
     : null
   const rti = enabledIndicators.rti ? calculateRTI(candles) : null
 
@@ -85,9 +85,9 @@ export default function IndicatorSection({ candles }: IndicatorSectionProps) {
         <AOChart ao={ao} candles={candles} />
       )}
 
-      {/* Disparity 차트 */}
-      {enabledIndicators.disparity && disparity && disparity.length > 0 && (
-        <DisparityChart disparity={disparity} candles={candles} />
+      {/* DP 차트 */}
+      {enabledIndicators.DP && DP && DP.length > 0 && (
+        <DisparityChart DP={DP} candles={candles} />
       )}
 
       {/* RTI 차트 */}

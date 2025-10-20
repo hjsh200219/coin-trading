@@ -102,18 +102,18 @@ export function calculateAO(
 }
 
 /**
- * Disparity Index 계산
+ * DP Index 계산
  * indicator.md: 100 * (close - xEMA) / xEMA
  */
-export interface DisparityResult {
+export interface DPResult {
   period: number
   values: number[]
 }
 
-export function calculateDisparity(
+export function calculateDP(
   candles: Candle[],
   period = 20
-): DisparityResult | null {
+): DPResult | null {
   if (candles.length < period) {
     return null
   }
@@ -126,32 +126,32 @@ export function calculateDisparity(
     period,
   })
 
-  // Disparity = 100 * (현재가 - EMA) / EMA
-  const disparityValues: number[] = []
+  // DP = 100 * (현재가 - EMA) / EMA
+  const DPValues: number[] = []
   const offset = period - 1
 
   for (let i = 0; i < ema.length; i++) {
     const currentPrice = closePrices[i + offset]
-    const disparity = (100 * (currentPrice - ema[i])) / ema[i]
-    disparityValues.push(disparity)
+    const DP = (100 * (currentPrice - ema[i])) / ema[i]
+    DPValues.push(DP)
   }
 
   return {
     period,
-    values: disparityValues,
+    values: DPValues,
   }
 }
 
 /**
- * 복수 기간 Disparity 계산
+ * 복수 기간 DP 계산
  */
-export function calculateMultipleDisparity(
+export function calculateMultipleDP(
   candles: Candle[],
   periods: number[] = [20, 60, 120]
-): DisparityResult[] {
+): DPResult[] {
   return periods
-    .map((period) => calculateDisparity(candles, period))
-    .filter((result): result is DisparityResult => result !== null)
+    .map((period) => calculateDP(candles, period))
+    .filter((result): result is DPResult => result !== null)
 }
 
 /**
