@@ -17,10 +17,12 @@ self.onmessage = function(e) {
         buyThresholdMax,
         sellThresholdMin,
         sellThresholdMax,
-        indicators // 지표 설정 ✨
+        indicators, // 지표 설정 ✨
+        decimalPlaces // 소수점 자릿수 ✨
       } = data
 
       console.log('Worker received indicators:', indicators)
+      console.log('Worker received decimalPlaces:', decimalPlaces)
 
       // 시뮬레이션 실행
       runGridSimulation(
@@ -32,7 +34,8 @@ self.onmessage = function(e) {
         buyThresholdMax,
         sellThresholdMin,
         sellThresholdMax,
-        indicators // 지표 설정 전달
+        indicators, // 지표 설정 전달
+        decimalPlaces // 소수점 자릿수 전달
       )
     } catch (error) {
       self.postMessage({
@@ -352,18 +355,30 @@ function runGridSimulation(
   buyThresholdMax,
   sellThresholdMin,
   sellThresholdMax,
-  indicators // 지표 설정 ✨
+  indicators, // 지표 설정 ✨
+  decimalPlaces // 소수점 자릿수 ✨
 ) {
   const results = []
   const buyThresholds = []
   const sellThresholds = []
   
-  for (let t = buyThresholdMin; t <= buyThresholdMax; t += 0.01) {
-    buyThresholds.push(Math.round(t * 100) / 100)
+  // 소수점 자릿수에 따른 step 결정
+  const step = decimalPlaces === 3 ? 0.001 : 0.01
+  const multiplier = decimalPlaces === 3 ? 1000 : 100
+  
+  // 정수 연산으로 부동소수점 오차 방지
+  const buyMinInt = Math.round(buyThresholdMin * multiplier)
+  const buyMaxInt = Math.round(buyThresholdMax * multiplier)
+  const sellMinInt = Math.round(sellThresholdMin * multiplier)
+  const sellMaxInt = Math.round(sellThresholdMax * multiplier)
+  const stepInt = Math.round(step * multiplier)
+  
+  for (let t = buyMinInt; t <= buyMaxInt; t += stepInt) {
+    buyThresholds.push(t / multiplier)
   }
   
-  for (let t = sellThresholdMin; t <= sellThresholdMax; t += 0.01) {
-    sellThresholds.push(Math.round(t * 100) / 100)
+  for (let t = sellMinInt; t <= sellMaxInt; t += stepInt) {
+    sellThresholds.push(t / multiplier)
   }
   
   const totalIterations = buyThresholds.length * sellThresholds.length

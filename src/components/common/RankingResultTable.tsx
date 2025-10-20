@@ -51,7 +51,7 @@ export default function RankingResultTable({ data }: RankingResultTableProps) {
         <table className="w-full">
           <thead className="sticky top-0 z-10 bg-surface">
             <TableRow hover={false}>
-              <TableCell header align="center">
+              <TableCell header align="center" className="w-32 min-w-[128px]">
                 시작시간
               </TableCell>
               <TableCell header align="center">
@@ -77,7 +77,7 @@ export default function RankingResultTable({ data }: RankingResultTableProps) {
           <TableBody>
             {sortedData.map((item) => (
               <TableRow key={item.timestamp}>
-                <TableCell align="center" className="whitespace-nowrap">
+                <TableCell align="center" className="w-32 min-w-[128px] whitespace-nowrap">
                   {formatChartTime(item.timestamp)}
                 </TableCell>
                 <TableCell align="right" className="font-medium">

@@ -32,10 +32,10 @@ export default function TradingSimulationContent({
   // Trading Simulation 설정
   const [buyConditionCount, setBuyConditionCount] = useState(3)
   const [sellConditionCount, setSellConditionCount] = useState(3)
-  const [buyThresholdMin, setBuyThresholdMin] = useState(0.7)
-  const [buyThresholdMax, setBuyThresholdMax] = useState(0.8)
-  const [sellThresholdMin, setSellThresholdMin] = useState(0.4)
-  const [sellThresholdMax, setSellThresholdMax] = useState(0.5)
+  const [buyThresholdMin, setBuyThresholdMin] = useState(0.0)
+  const [buyThresholdMax, setBuyThresholdMax] = useState(1.0)
+  const [sellThresholdMin, setSellThresholdMin] = useState(0.0)
+  const [sellThresholdMax, setSellThresholdMax] = useState(1.0)
   const [isSimulating, setIsSimulating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [results, setResults] = useState<GridSimulationResult[][] | null>(null)
@@ -45,6 +45,7 @@ export default function TradingSimulationContent({
   const [maxReturn, setMaxReturn] = useState(0)
   const [using5Min, setUsing5Min] = useState<boolean | null>(null)
   const [progressMessage, setProgressMessage] = useState<string>('')
+  const [decimalPlaces, setDecimalPlaces] = useState<2 | 3>(2) // 임계값 소수점 자릿수 (기본값: 2)
   
   // Web Worker 참조
   const workerRef = useRef<Worker | null>(null)
@@ -140,8 +141,14 @@ export default function TradingSimulationContent({
       return
     }
 
-    if (buyThresholdMin < 0.3 || buyThresholdMax > 0.8) {
-      alert('매수 임계값 범위는 0.3 ~ 0.8 사이여야 합니다.')
+    if (buyThresholdMin < 0.0 || buyThresholdMax > 1.0) {
+      alert('매수 임계값 범위는 0.0 ~ 1.0 사이여야 합니다.')
+      return
+    }
+
+    // 소수점 3자리일 때 최대 구간 0.2로 제한
+    if (decimalPlaces === 3 && (buyThresholdMax - buyThresholdMin) > 0.2) {
+      alert('소수점 3자리 분석 시 매수 임계값 구간은 최대 0.2 범위로 제한됩니다.')
       return
     }
 
@@ -151,8 +158,14 @@ export default function TradingSimulationContent({
       return
     }
 
-    if (sellThresholdMin < 0.3 || sellThresholdMax > 0.8) {
-      alert('매도 임계값 범위는 0.3 ~ 0.8 사이여야 합니다.')
+    if (sellThresholdMin < 0.0 || sellThresholdMax > 1.0) {
+      alert('매도 임계값 범위는 0.0 ~ 1.0 사이여야 합니다.')
+      return
+    }
+
+    // 소수점 3자리일 때 최대 구간 0.2로 제한
+    if (decimalPlaces === 3 && (sellThresholdMax - sellThresholdMin) > 0.2) {
+      alert('소수점 3자리 분석 시 매도 임계값 구간은 최대 0.2 범위로 제한됩니다.')
       return
     }
 
@@ -241,7 +254,8 @@ export default function TradingSimulationContent({
             buyThresholdMax,
             sellThresholdMin,
             sellThresholdMax,
-            indicators // 지표 설정 추가 ✨
+            indicators, // 지표 설정 추가 ✨
+            decimalPlaces // 소수점 자릿수 추가 ✨
           }
         })
       } else {
@@ -356,8 +370,8 @@ export default function TradingSimulationContent({
                   type="number"
                   value={buyThresholdMin}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMin(Number(e.target.value))}
-                  min={0.3}
-                  max={0.8}
+                  min={0.0}
+                  max={1.0}
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
@@ -366,8 +380,8 @@ export default function TradingSimulationContent({
                   type="number"
                   value={buyThresholdMax}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMax(Number(e.target.value))}
-                  min={0.3}
-                  max={0.8}
+                  min={0.0}
+                  max={1.0}
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
@@ -393,8 +407,8 @@ export default function TradingSimulationContent({
                   type="number"
                   value={sellThresholdMin}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMin(Number(e.target.value))}
-                  min={0.3}
-                  max={0.8}
+                  min={0.0}
+                  max={1.0}
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
@@ -403,8 +417,8 @@ export default function TradingSimulationContent({
                   type="number"
                   value={sellThresholdMax}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMax(Number(e.target.value))}
-                  min={0.3}
-                  max={0.8}
+                  min={0.0}
+                  max={1.0}
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
@@ -435,8 +449,8 @@ export default function TradingSimulationContent({
                     type="number"
                     value={buyThresholdMin}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMin(Number(e.target.value))}
-                    min={0.3}
-                    max={0.8}
+                    min={0.0}
+                    max={1.0}
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
@@ -445,8 +459,8 @@ export default function TradingSimulationContent({
                     type="number"
                     value={buyThresholdMax}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMax(Number(e.target.value))}
-                    min={0.3}
-                    max={0.8}
+                    min={0.0}
+                    max={1.0}
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
@@ -478,8 +492,8 @@ export default function TradingSimulationContent({
                     type="number"
                     value={sellThresholdMin}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMin(Number(e.target.value))}
-                    min={0.3}
-                    max={0.8}
+                    min={0.0}
+                    max={1.0}
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
@@ -488,12 +502,46 @@ export default function TradingSimulationContent({
                     type="number"
                     value={sellThresholdMax}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMax(Number(e.target.value))}
-                    min={0.3}
-                    max={0.8}
+                    min={0.0}
+                    max={1.0}
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
                 </div>
+              </div>
+
+              {/* 결과 표시 설정 */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-medium text-foreground/70 whitespace-nowrap">임계값 표시</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setDecimalPlaces(2)}
+                      className={`px-3 py-1 rounded transition ${
+                        decimalPlaces === 2
+                          ? 'bg-brand text-background font-medium'
+                          : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                      }`}
+                    >
+                      소수점 2자리
+                    </button>
+                    <button
+                      onClick={() => setDecimalPlaces(3)}
+                      className={`px-3 py-1 rounded transition ${
+                        decimalPlaces === 3
+                          ? 'bg-brand text-background font-medium'
+                          : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                      }`}
+                    >
+                      소수점 3자리
+                    </button>
+                  </div>
+                </div>
+                {decimalPlaces === 3 && (
+                  <p className="text-[10px] text-foreground/50 pl-1">
+                    * 소수점 3자리는 최대 0.2 구간으로 제한됩니다
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -595,7 +643,7 @@ export default function TradingSimulationContent({
                   </th>
                   {sellThresholds.map((threshold) => (
                     <th key={threshold} className="border border-border p-2 bg-surface-75">
-                      {threshold.toFixed(2)}
+                      {threshold.toFixed(decimalPlaces)}
                     </th>
                   ))}
                 </tr>
@@ -604,7 +652,7 @@ export default function TradingSimulationContent({
                 {results.map((row, rowIdx) => (
                   <tr key={rowIdx}>
                     <td className="border border-border p-2 font-medium bg-surface-75 sticky left-0 w-20 min-w-[80px]">
-                      {buyThresholds[rowIdx]?.toFixed(2) || '-'}
+                      {buyThresholds[rowIdx]?.toFixed(decimalPlaces) || '-'}
                     </td>
                     {row.map((cell, colIdx) => {
                       const colors = getCellColors(cell.totalReturn)
@@ -616,7 +664,7 @@ export default function TradingSimulationContent({
                             backgroundColor: colors.background,
                             color: colors.text
                           }}
-                          title={`매수: ${cell.buyThreshold.toFixed(2)}, 매도: ${cell.sellThreshold.toFixed(2)}\n수익률: ${formatReturn(cell.totalReturn)}%\n거래 횟수: ${cell.tradeCount}`}
+                          title={`매수: ${cell.buyThreshold.toFixed(decimalPlaces)}, 매도: ${cell.sellThreshold.toFixed(decimalPlaces)}\n수익률: ${formatReturn(cell.totalReturn)}%\n거래 횟수: ${cell.tradeCount}`}
                         >
                           {formatReturn(cell.totalReturn)}%
                         </td>
