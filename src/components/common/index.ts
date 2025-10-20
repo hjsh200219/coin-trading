@@ -23,3 +23,4 @@ export type { UserTypeBadgeProps } from './UserTypeBadge'
 export { default as RankingControls } from './RankingControls'
 export { default as RankingResultTable } from './RankingResultTable'
 
+export { default as AnalysisSettings } from './AnalysisSettings'

@@ -1,7 +1,5 @@
-import AppLayout from '@/components/AppLayout'
 import { MAJOR_COINS } from '@/lib/bithumb/types'
-import { notFound } from 'next/navigation'
-import RankingAnalysisContent from './RankingAnalysisContent'
+import { notFound, redirect } from 'next/navigation'
 
 interface SimulationDetailPageProps {
   params: Promise<{
@@ -17,10 +15,6 @@ export default async function SimulationDetailPage({ params }: SimulationDetailP
     notFound()
   }
 
-  return (
-    <AppLayout>
-      <RankingAnalysisContent symbol={coin.symbol} />
-    </AppLayout>
-  )
+  // 기본적으로 rankingvalue 탭으로 redirect
+  redirect(`/simulation/${symbol}/rankingvalue`)
 }
-

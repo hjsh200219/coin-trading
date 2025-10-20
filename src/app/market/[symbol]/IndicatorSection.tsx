@@ -85,7 +85,7 @@ export default function IndicatorSection({ candles }: IndicatorSectionProps) {
         <AOChart ao={ao} candles={candles} />
       )}
 
-      {/* Dispariy 차트 */}
+      {/* Disparity 차트 */}
       {enabledIndicators.disparity && disparity && disparity.length > 0 && (
         <DisparityChart disparity={disparity} candles={candles} />
       )}

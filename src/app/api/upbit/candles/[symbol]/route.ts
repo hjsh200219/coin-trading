@@ -21,13 +21,18 @@ export async function GET(request: Request, { params }: RouteParams) {
     const { symbol } = await params
     const { searchParams } = new URL(request.url)
 
-    const timeframe = searchParams.get('timeframe') || '1d'
-    const period = parseInt(searchParams.get('period') || '200', 10)
+    // timeFrame 또는 timeframe 둘 다 지원
+    const timeframe = searchParams.get('timeFrame') || searchParams.get('timeframe') || '1d'
+    const period = parseInt(searchParams.get('limit') || searchParams.get('period') || '200', 10)
+    const baseDate = searchParams.get('baseDate') // 기준 날짜 (YYYY-MM-DD)
 
     // 최대 200개로 제한
     const count = Math.min(period, 200)
 
     const marketCode = getUpbitMarketCode(symbol)
+    
+    // 기준 날짜를 타임스탬프로 변환 (밀리초)
+    const baseDateTimestamp = baseDate ? new Date(baseDate + 'T23:59:59+09:00').getTime() : Date.now()
 
     let candles
 
@@ -67,8 +72,12 @@ export async function GET(request: Request, { params }: RouteParams) {
         )
     }
 
-    // 공통 Candle 타입으로 변환
+    // 공통 Candle 타입으로 변환 및 기준 날짜 필터링
     const commonCandles = convertToCommonCandles(candles)
+      // 기준 날짜 이전 데이터만 필터링
+      .filter((candle) => candle.timestamp <= baseDateTimestamp)
+      // 최신 count개 선택
+      .slice(-count)
 
     return NextResponse.json({
       success: true,

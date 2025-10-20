@@ -47,7 +47,7 @@ export default function RankingResultTable({ data }: RankingResultTableProps) {
   return (
     <div className="bg-surface border border-border rounded-lg overflow-hidden">
       {/* 테이블 컨테이너 - 스크롤 영역 */}
-      <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+      <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
         <table className="w-full">
           <thead className="sticky top-0 z-10 bg-surface">
             <TableRow hover={false}>
@@ -67,7 +67,7 @@ export default function RankingResultTable({ data }: RankingResultTableProps) {
                 AO
               </TableCell>
               <TableCell header align="center">
-                Dispariy
+                Disparity
               </TableCell>
               <TableCell header align="center">
                 RTI

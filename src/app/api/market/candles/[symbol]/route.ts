@@ -3,11 +3,15 @@ import type { TimeFrame, Candle } from '@/lib/bithumb/types'
 
 // 빗썸 API 타임프레임 맵핑
 const timeFrameMap: Record<TimeFrame, string> = {
+  '1m': '1m',
+  '5m': '5m',
+  '10m': '10m',
   '30m': '30m',
   '1h': '1h',
   '2h': '12h', // 빗썸은 2시간봉 미지원, 12시간봉 사용
   '4h': '12h', // 빗썸은 4시간봉 미지원, 12시간봉 사용
   '1d': '24h',
+  '1w': '24h', // 빗썸은 주봉 미지원, 일봉 사용
 }
 
 export async function GET(
@@ -18,10 +22,14 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const timeFrame = (searchParams.get('timeFrame') || '1h') as TimeFrame
     const limit = parseInt(searchParams.get('limit') || '200')
+    const baseDate = searchParams.get('baseDate') // 기준 날짜 (YYYY-MM-DD)
 
     const { symbol: symbolParam } = await params
     const symbol = symbolParam.toUpperCase()
     const interval = timeFrameMap[timeFrame]
+    
+    // 기준 날짜를 타임스탬프로 변환 (밀리초)
+    const baseDateTimestamp = baseDate ? new Date(baseDate + 'T23:59:59+09:00').getTime() : Date.now()
 
     // 빗썸 캔들 API 호출
     const url = `https://api.bithumb.com/public/candlestick/${symbol}_KRW/${interval}`
@@ -42,10 +50,8 @@ export async function GET(
       throw new Error('빗썸 API에서 데이터를 가져올 수 없습니다')
     }
 
-    // 캔들 데이터 변환
-    // slice(-limit): 마지막 N개 (최신 데이터)를 가져옴
+    // 캔들 데이터 변환 및 기준 날짜 필터링
     const candles: Candle[] = result.data
-      .slice(-limit) // 최신 500개 선택
       .map((item: any[]) => ({
         timestamp: item[0],
         open: parseFloat(item[1]),
@@ -54,7 +60,10 @@ export async function GET(
         low: parseFloat(item[4]),
         volume: parseFloat(item[5]),
       }))
-      // 빗썸 API는 오래된 것부터 반환하므로 reverse 불필요
+      // 기준 날짜 이전 데이터만 필터링
+      .filter((candle: Candle) => candle.timestamp <= baseDateTimestamp)
+      // 최신 limit개 선택
+      .slice(-limit)
 
     return NextResponse.json({
       success: true,

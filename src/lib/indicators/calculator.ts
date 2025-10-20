@@ -126,7 +126,7 @@ export function calculateDisparity(
     period,
   })
 
-  // Dispariy = 100 * (현재가 - EMA) / EMA
+  // Disparity = 100 * (현재가 - EMA) / EMA
   const disparityValues: number[] = []
   const offset = period - 1
 
@@ -143,7 +143,7 @@ export function calculateDisparity(
 }
 
 /**
- * 복수 기간 Dispariy 계산
+ * 복수 기간 Disparity 계산
  */
 export function calculateMultipleDisparity(
   candles: Candle[],

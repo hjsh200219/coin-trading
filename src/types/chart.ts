@@ -1,6 +1,6 @@
 // 차트 관련 공통 타입 정의
 
-export type TimeFrame = '30m' | '1h' | '2h' | '4h' | '1d'
+export type TimeFrame = '1m' | '5m' | '10m' | '30m' | '1h' | '2h' | '4h' | '1d' | '1w'
 export type Period = '1M' | '3M' | '6M' | '1Y' | '2Y' | '3Y'
 export type Exchange = 'bithumb' | 'upbit' | 'binance'
 
@@ -16,7 +16,7 @@ export interface RankingDataPoint {
   macd: number | null // MACD 값
   rsi: number | null // RSI 값
   ao: number | null // Awesome Oscillator 값
-  disparity: number | null // Dispariy 값
+  disparity: number | null // Disparity 값
   rti: number | null // RTI 값
   rankingValue: number // 계산된 랭킹 값
 }
