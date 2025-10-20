@@ -19,14 +19,29 @@ export async function GET(
     const timeFrame = searchParams.get('timeFrame') || '1h'
     const limit = parseInt(searchParams.get('limit') || '500')
     const baseDate = searchParams.get('baseDate') // 기준 날짜 (YYYY-MM-DD)
+    const endTime = searchParams.get('endTime') // 종료 시간 (밀리초 타임스탬프)
 
     const interval = timeFrameToInterval(timeFrame)
-    const klines = await getKlines(symbol.toUpperCase(), interval, limit)
     
     // 기준 날짜를 타임스탬프로 변환 (밀리초)
-    const baseDateTimestamp = baseDate ? new Date(baseDate + 'T23:59:59+09:00').getTime() : Date.now()
+    let baseDateTimestamp: number
+    if (endTime) {
+      baseDateTimestamp = parseInt(endTime)
+    } else if (baseDate) {
+      baseDateTimestamp = new Date(baseDate + 'T23:59:59+09:00').getTime()
+    } else {
+      baseDateTimestamp = Date.now()
+    }
+    
+    // Binance API 호출 (endTime 파라미터 포함)
+    const klines = await getKlines(
+      symbol.toUpperCase(), 
+      interval, 
+      limit, 
+      baseDateTimestamp // endTime 파라미터 전달
+    )
 
-    // 바이낸스 Kline을 Candle 형식으로 변환 및 기준 날짜 필터링
+    // 바이낸스 Kline을 Candle 형식으로 변환
     const candles: Candle[] = klines
       .map((kline: BinanceKline) => ({
         timestamp: kline[0], // Open time
@@ -36,10 +51,8 @@ export async function GET(
         close: parseFloat(kline[4]),
         volume: parseFloat(kline[5]),
       }))
-      // 기준 날짜 이전 데이터만 필터링
+      // 기준 날짜 이전 데이터만 필터링 (안전장치)
       .filter((candle: Candle) => candle.timestamp <= baseDateTimestamp)
-      // 최신 limit개 선택
-      .slice(-limit)
 
     return NextResponse.json({
       success: true,
@@ -50,7 +63,6 @@ export async function GET(
       count: candles.length,
     })
   } catch (error) {
-    console.error('Binance candles API error:', error)
     return NextResponse.json(
       { 
         success: false,

@@ -44,19 +44,32 @@ export async function getTicker(coin: string): Promise<BinanceTicker> {
  * @param symbol 바이낸스 심볼 (예: BTCUSDT)
  * @param interval 시간 간격 (1m, 5m, 15m, 1h, 4h, 1d 등)
  * @param limit 가져올 개수 (기본 500, 최대 1000)
+ * @param endTime 종료 시간 (밀리초 타임스탬프) - 선택
+ * @param startTime 시작 시간 (밀리초 타임스탬프) - 선택
  */
 export async function getKlines(
   coin: string,
   interval: string = '1h',
-  limit: number = 500
+  limit: number = 500,
+  endTime?: number,
+  startTime?: number
 ): Promise<BinanceKline[]> {
   const symbol = toBinanceSymbol(coin)
-  const response = await fetch(
-    `${BINANCE_API_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
-    {
-      next: { revalidate: 60 }, // 1분 캐시
-    }
-  )
+  let url = `${BINANCE_API_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
+  
+  // endTime 파라미터 추가 (과거 데이터 가져오기)
+  if (endTime) {
+    url += `&endTime=${endTime}`
+  }
+  
+  // startTime 파라미터 추가 (특정 시작 시점부터)
+  if (startTime) {
+    url += `&startTime=${startTime}`
+  }
+  
+  const response = await fetch(url, {
+    next: { revalidate: 60 }, // 1분 캐시
+  })
 
   if (!response.ok) {
     throw new Error(`Failed to fetch Binance klines for ${symbol}`)

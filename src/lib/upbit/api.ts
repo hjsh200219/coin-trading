@@ -77,31 +77,45 @@ export async function getTickers(markets: string[]): Promise<UpbitTicker[]> {
  * @param market 마켓 코드 (예: KRW-BTC)
  * @param unit 분 단위 (1, 3, 5, 10, 15, 30, 60, 240)
  * @param count 캔들 개수 (최대 200)
+ * @param to 마지막 캔들 시각 (ISO 8601 포맷, 예: "2023-12-31T23:59:59Z")
  * @returns 분봉 캔들 데이터
  */
 export async function getMinuteCandles(
   market: string,
   unit: 1 | 3 | 5 | 10 | 15 | 30 | 60 | 240 = 1,
-  count: number = 200
+  count: number = 200,
+  to?: string
 ): Promise<UpbitMinuteCandle[]> {
-  return fetchUpbitAPI<UpbitMinuteCandle[]>(
-    `${UPBIT_API_BASE_URL}/candles/minutes/${unit}?market=${market}&count=${count}`
-  )
+  let url = `${UPBIT_API_BASE_URL}/candles/minutes/${unit}?market=${market}&count=${count}`
+  
+  // to 파라미터 추가 (과거 데이터 가져오기)
+  if (to) {
+    url += `&to=${encodeURIComponent(to)}`
+  }
+  
+  return fetchUpbitAPI<UpbitMinuteCandle[]>(url)
 }
 
 /**
  * 일봉 캔들 조회
  * @param market 마켓 코드 (예: KRW-BTC)
  * @param count 캔들 개수 (최대 200)
+ * @param to 마지막 캔들 시각 (ISO 8601 포맷, 예: "2023-12-31T23:59:59Z")
  * @returns 일봉 캔들 데이터
  */
 export async function getDayCandles(
   market: string,
-  count: number = 200
+  count: number = 200,
+  to?: string
 ): Promise<UpbitDayCandle[]> {
-  return fetchUpbitAPI<UpbitDayCandle[]>(
-    `${UPBIT_API_BASE_URL}/candles/days?market=${market}&count=${count}`
-  )
+  let url = `${UPBIT_API_BASE_URL}/candles/days?market=${market}&count=${count}`
+  
+  // to 파라미터 추가 (과거 데이터 가져오기)
+  if (to) {
+    url += `&to=${encodeURIComponent(to)}`
+  }
+  
+  return fetchUpbitAPI<UpbitDayCandle[]>(url)
 }
 
 /**

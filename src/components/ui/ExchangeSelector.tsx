@@ -10,13 +10,8 @@ interface ExchangeSelectorProps {
   showLabel?: boolean
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  disabledExchanges?: Exchange[]
 }
-
-const EXCHANGE_OPTIONS: ButtonGroupOption<Exchange>[] = [
-  { value: 'bithumb', label: 'Bithumb' },
-  { value: 'upbit', label: 'Upbit' },
-  { value: 'binance', label: 'Binance' },
-]
 
 export default function ExchangeSelector({
   value,
@@ -25,7 +20,14 @@ export default function ExchangeSelector({
   showLabel = true,
   size = 'sm',
   className = '',
+  disabledExchanges = [],
 }: ExchangeSelectorProps) {
+  const EXCHANGE_OPTIONS: ButtonGroupOption<Exchange>[] = [
+    { value: 'bithumb', label: 'Bithumb', disabled: disabledExchanges.includes('bithumb') },
+    { value: 'upbit', label: 'Upbit', disabled: disabledExchanges.includes('upbit') },
+    { value: 'binance', label: 'Binance', disabled: disabledExchanges.includes('binance') },
+  ]
+
   return (
     <div className={`flex items-center gap-1.5 ${className}`}>
       {showLabel && (

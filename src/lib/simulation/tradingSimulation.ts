@@ -1,10 +1,31 @@
 /**
  * Trading Simulation Logic
  * 2시간 봉 기반의 5분 간격 매매 시뮬레이션
+ * 
+ * 매수/매도 로직은 @/lib/simulation/tradingRules에 정의되어 있습니다
+ * 상수는 @/lib/simulation/constants에 정의되어 있습니다
  */
 
 import { calculateRSI, calculateMACD, calculateAO, calculateDP, calculateRTI } from '@/lib/indicators/calculator'
 import type { Candle } from '@/lib/bithumb/types'
+import {
+  INITIAL_CAPITAL,
+  MAX_LOOKBACK_PERIOD,
+  BATCH_SIZE,
+  UI_UPDATE_DELAY,
+  THRESHOLD_STEP,
+  POSITION_NONE,
+  POSITION_LONG,
+} from './constants'
+import {
+  checkBuyCondition,
+  checkSellCondition,
+  executeBuy,
+  executeSell,
+  calculateTotalReturn,
+  liquidatePosition,
+  type TradingPosition,
+} from './tradingRules'
 
 export interface CandleData {
   timestamp: number
@@ -111,17 +132,8 @@ export function calculateIndicatorValue(
   }
 }
 
-/**
- * Min/Max 값 계산
- */
-export function calculateMinMax(values: number[]): { min: number; max: number } {
-  if (values.length === 0) return { min: 0, max: 0 }
-  
-  return {
-    min: Math.min(...values),
-    max: Math.max(...values)
-  }
-}
+// calculateMinMax는 tradingRules에서 import하여 사용
+export { calculateMinMax } from './tradingRules'
 
 /**
  * 매매 시뮬레이션 실행
@@ -134,10 +146,14 @@ export function runTradingSimulation(
   cachedIndicatorValues?: number[]
 ): SimulationResult {
   const trades: TradeRecord[] = []
-  let position = 0 // 0: 보유 없음, 1: 매수 상태
-  let balance = 1000000 // 초기 자본 100만원
-  let holdings = 0 // 보유 코인 수량
-  let buyPrice = 0
+  
+  // 초기 포지션 (tradingRules의 상수 사용)
+  let tradingPosition: TradingPosition = {
+    position: POSITION_NONE,
+    balance: INITIAL_CAPITAL,
+    holdings: 0,
+    buyPrice: 0
+  }
 
   // 5분봉 데이터 생성
   const fiveMin = generate5MinCandles(twoHourCandles, fiveMinCandles)
@@ -148,17 +164,17 @@ export function runTradingSimulation(
       totalReturn: 0,
       tradeCount: 0,
       trades: [],
-      finalBalance: balance
+      finalBalance: tradingPosition.balance
     }
   }
   
   // 지표 값 (캐시가 있으면 사용, 없으면 계산)
   const indicatorValues: number[] = cachedIndicatorValues || []
   
-  // 캐시가 없을 경우에만 지표 계산
+  // 캐시가 없을 경우에만 지표 계산 (MAX_LOOKBACK_PERIOD 사용)
   if (!cachedIndicatorValues) {
     for (let i = 0; i < fiveMin.length; i++) {
-      const lookbackPeriod = Math.min(120, i + 1)
+      const lookbackPeriod = Math.min(MAX_LOOKBACK_PERIOD, i + 1)
       const candlesForIndicator = fiveMin.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
       const indicatorValue = calculateIndicatorValue(candlesForIndicator, 'RTI')
       indicatorValues.push(indicatorValue)
@@ -168,74 +184,69 @@ export function runTradingSimulation(
   // 시작 인덱스 자동 계산: max(buyConditionCount, sellConditionCount) 이후부터
   const startIndex = Math.max(config.buyConditionCount, config.sellConditionCount)
   
-  // 시작 인덱스부터 시뮬레이션
+  // 시작 인덱스부터 시뮬레이션 (중앙화된 tradingRules 사용)
   for (let i = startIndex; i < fiveMin.length; i++) {
     const indicatorValue = indicatorValues[i]
     const currentPrice = fiveMin[i].close
     
-    // 매수 조건 체크
-    if (position === 0 && i >= config.buyConditionCount) {
+    // 매수 조건 체크 (tradingRules.checkBuyCondition 사용)
+    if (tradingPosition.position === POSITION_NONE && i >= config.buyConditionCount) {
       // 현재 값을 제외한 직전 N개 (엑셀 로직)
       const recentValues = indicatorValues.slice(i - config.buyConditionCount, i)
-      const { min } = calculateMinMax(recentValues)
+      const buyCheck = checkBuyCondition(recentValues, indicatorValue, config.buyThreshold)
       
-      // 매수 조건: 현재 값이 min 대비 buyThreshold 이상
-      const buyCondition = min + (Math.abs(min) * config.buyThreshold)
-      
-      if (indicatorValue >= buyCondition) {
-        holdings = balance / currentPrice
-        buyPrice = currentPrice
-        balance = 0
-        position = 1
+      if (buyCheck.shouldBuy) {
+        // tradingRules.executeBuy 사용
+        tradingPosition = executeBuy(tradingPosition, currentPrice)
         
         trades.push({
           timestamp: fiveMin[i].timestamp,
           action: 'buy',
           price: currentPrice,
-          minValue: min,
+          minValue: buyCheck.minValue,
           threshold: config.buyThreshold
         })
       }
     }
     
-    // 매도 조건 체크
-    if (position === 1 && i >= config.sellConditionCount) {
+    // 매도 조건 체크 (tradingRules.checkSellCondition 사용)
+    if (tradingPosition.position === POSITION_LONG && i >= config.sellConditionCount) {
       // 현재 값을 제외한 직전 N개 (엑셀 로직)
       const recentValues = indicatorValues.slice(i - config.sellConditionCount, i)
-      const { max } = calculateMinMax(recentValues)
+      const sellCheck = checkSellCondition(recentValues, indicatorValue, config.sellThreshold)
       
-      // 현재 값이 max 대비 sellThreshold 이하면 매도
-      if (indicatorValue <= max - (Math.abs(max) * config.sellThreshold)) {
-        balance = holdings * currentPrice
-        const profit = balance - (holdings * buyPrice)
-        holdings = 0
-        position = 0
+      if (sellCheck.shouldSell) {
+        // tradingRules.executeSell 사용
+        tradingPosition = executeSell(tradingPosition, currentPrice)
         
         trades.push({
           timestamp: fiveMin[i].timestamp,
           action: 'sell',
           price: currentPrice,
-          maxValue: max,
+          maxValue: sellCheck.maxValue,
           threshold: config.sellThreshold
         })
       }
     }
   }
   
-  // 마지막에 포지션이 있으면 청산
+  // 마지막에 포지션이 있으면 청산 (tradingRules.liquidatePosition 사용)
   const finalPrice = fiveMin[fiveMin.length - 1].close
-  if (position === 1) {
-    balance = holdings * finalPrice
-    holdings = 0
-  }
+  tradingPosition = liquidatePosition(tradingPosition, finalPrice)
   
-  const totalReturn = ((balance - 1000000) / 1000000) * 100
+  // 수익률 계산 (tradingRules.calculateTotalReturn 사용)
+  const totalReturn = calculateTotalReturn(
+    INITIAL_CAPITAL,
+    tradingPosition.balance,
+    tradingPosition.holdings,
+    finalPrice
+  )
   
   return {
     totalReturn,
     tradeCount: trades.length,
     trades,
-    finalBalance: balance
+    finalBalance: tradingPosition.balance
   }
 }
 
@@ -265,49 +276,37 @@ export async function runGridSimulation(
   const buyThresholds: number[] = []
   const sellThresholds: number[] = []
   
-  // 매수 임계값 배열 생성 (사용자 지정 범위, 0.01 단위)
-  for (let t = buyThresholdMin; t <= buyThresholdMax; t += 0.01) {
+  // 매수 임계값 배열 생성 (사용자 지정 범위, THRESHOLD_STEP 단위)
+  for (let t = buyThresholdMin; t <= buyThresholdMax; t += THRESHOLD_STEP) {
     buyThresholds.push(Math.round(t * 100) / 100)
   }
   
-  // 매도 임계값 배열 생성 (사용자 지정 범위, 0.01 단위)
-  for (let t = sellThresholdMin; t <= sellThresholdMax; t += 0.01) {
+  // 매도 임계값 배열 생성 (사용자 지정 범위, THRESHOLD_STEP 단위)
+  for (let t = sellThresholdMin; t <= sellThresholdMax; t += THRESHOLD_STEP) {
     sellThresholds.push(Math.round(t * 100) / 100)
   }
   
   const totalIterations = buyThresholds.length * sellThresholds.length
   let currentIteration = 0
   
-  console.log('그리드 시뮬레이션 시작:', {
-    buyThresholds: buyThresholds.length,
-    sellThresholds: sellThresholds.length,
-    totalIterations
-  })
-  
   // ⚡ 성능 최적화: 지표를 한 번만 계산하고 캐싱
   const fiveMin = generate5MinCandles(twoHourCandles, fiveMinCandles)
   
   if (fiveMin.length === 0) {
-    console.error('5분봉 데이터가 없습니다.')
     return null
   }
   
-  console.log('지표 캐싱 시작...', { candleCount: fiveMin.length })
   const cachedIndicatorValues: number[] = []
   
+  // MAX_LOOKBACK_PERIOD 사용하여 지표 계산
   for (let i = 0; i < fiveMin.length; i++) {
-    const lookbackPeriod = Math.min(120, i + 1)
+    const lookbackPeriod = Math.min(MAX_LOOKBACK_PERIOD, i + 1)
     const candlesForIndicator = fiveMin.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
     const indicatorValue = calculateIndicatorValue(candlesForIndicator, 'RTI')
     cachedIndicatorValues.push(indicatorValue)
   }
   
-  console.log('지표 캐싱 완료!', { values: cachedIndicatorValues.length })
-  
-  // 배치 크기 (한 번에 처리할 개수)
-  const BATCH_SIZE = 10
-  
-  // 각 매수/매도 임계값 조합에 대해 시뮬레이션
+  // 각 매수/매도 임계값 조합에 대해 시뮬레이션 (BATCH_SIZE는 constants에서 import)
   for (let i = 0; i < buyThresholds.length; i++) {
     const buyThreshold = buyThresholds[i]
     const row: GridSimulationResult[] = []
@@ -315,7 +314,6 @@ export async function runGridSimulation(
     for (let j = 0; j < sellThresholds.length; j++) {
       // 취소 확인
       if (shouldCancel && shouldCancel()) {
-        console.log('시뮬레이션이 사용자에 의해 취소되었습니다.')
         return null
       }
       
@@ -352,8 +350,8 @@ export async function runGridSimulation(
         if (onProgress) {
           onProgress(progress)
         }
-        // 브라우저가 UI를 업데이트할 시간 제공 (10ms = 약 100fps)
-        await new Promise(resolve => setTimeout(resolve, 10))
+        // 브라우저가 UI를 업데이트할 시간 제공 (UI_UPDATE_DELAY)
+        await new Promise(resolve => setTimeout(resolve, UI_UPDATE_DELAY))
       }
     }
     
@@ -364,12 +362,6 @@ export async function runGridSimulation(
   if (onProgress) {
     onProgress(100)
   }
-  
-  console.log('그리드 시뮬레이션 완료:', {
-    결과수: results.length * (results[0]?.length || 0),
-    매수범위: `${buyThresholdMin} ~ ${buyThresholdMax}`,
-    매도범위: `${sellThresholdMin} ~ ${sellThresholdMax}`
-  })
   
   return results
 }

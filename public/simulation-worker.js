@@ -1,6 +1,18 @@
 /* eslint-disable */
-// Trading Simulation Web Worker
-// 백그라운드 스레드에서 시뮬레이션 계산 실행
+/**
+ * Trading Simulation Web Worker
+ * 백그라운드 스레드에서 시뮬레이션 계산 실행
+ * 
+ * ⚠️ 중요: 이 파일의 로직은 src/lib/simulation/ 파일들과 동기화되어야 합니다
+ * 
+ * 중앙 관리 파일:
+ * - src/lib/simulation/constants.ts      → 상수 정의
+ * - src/lib/simulation/tradingRules.ts   → 매수/매도 로직
+ * - src/lib/simulation/README.md         → 전체 문서
+ * 
+ * Worker는 ES Module import를 사용할 수 없으므로,
+ * 로직 변경 시 이 파일도 수동으로 업데이트해야 합니다.
+ */
 
 // 메시지 수신
 self.onmessage = function(e) {
@@ -18,13 +30,11 @@ self.onmessage = function(e) {
         sellThresholdMin,
         sellThresholdMax,
         indicators, // 지표 설정 ✨
-        decimalPlaces // 소수점 자릿수 ✨
-      } = data
+        decimalPlaces, // 소수점 자릿수 ✨
+      initialPosition // 초기 포지션 ✨
+    } = data
 
-      console.log('Worker received indicators:', indicators)
-      console.log('Worker received decimalPlaces:', decimalPlaces)
-
-      // 시뮬레이션 실행
+    // 시뮬레이션 실행
       runGridSimulation(
         mainCandles,
         fiveMinCandles,
@@ -35,8 +45,44 @@ self.onmessage = function(e) {
         sellThresholdMin,
         sellThresholdMax,
         indicators, // 지표 설정 전달
-        decimalPlaces // 소수점 자릿수 전달
+        decimalPlaces, // 소수점 자릿수 전달
+        initialPosition // 초기 포지션 전달
       )
+    } catch (error) {
+      self.postMessage({
+        type: 'ERROR',
+        error: error.message
+      })
+    }
+  } else if (type === 'GET_DETAIL') {
+    try {
+      const {
+        mainCandles,
+        fiveMinCandles,
+        buyConditionCount,
+        sellConditionCount,
+        buyThreshold,
+        sellThreshold,
+        indicators,
+        initialPosition
+      } = data
+
+      // 상세 내역 생성
+      const details = runDetailedSimulation(
+        mainCandles,
+        fiveMinCandles,
+        buyConditionCount,
+        sellConditionCount,
+        buyThreshold,
+        sellThreshold,
+        indicators,
+        initialPosition
+      )
+
+      self.postMessage({
+        type: 'DETAIL_COMPLETE',
+        details
+      })
     } catch (error) {
       self.postMessage({
         type: 'ERROR',
@@ -45,6 +91,20 @@ self.onmessage = function(e) {
     }
   }
 }
+
+// ===== 상수 정의 (src/lib/simulation/constants.ts와 동기화) =====
+
+/**
+ * ⚠️ 주의: 이 상수들은 src/lib/simulation/constants.ts와 동일하게 유지해야 합니다
+ */
+
+const INITIAL_CAPITAL = 1000000        // 초기 자본 (100만원)
+const MAX_LOOKBACK_PERIOD = 120        // 최대 lookback 기간 (캔들 개수)
+const BATCH_SIZE = 10                  // 배치 처리 크기 (진행률 업데이트 간격)
+const UI_UPDATE_DELAY = 10             // UI 업데이트 딜레이 (ms)
+const THRESHOLD_STEP = 0.01            // 임계값 단위 (0.01 = 1%)
+const POSITION_NONE = 0                // 포지션 없음
+const POSITION_LONG = 1                // 매수 포지션
 
 // ===== 유틸리티 함수들 =====
 
@@ -238,7 +298,6 @@ function calculateRankingValue(candles, indicators) {
     
     return totalValue
   } catch (error) {
-    console.error('Indicator calculation error:', error)
     return 0
   }
 }
@@ -255,14 +314,10 @@ function runTradingSimulation(
   twoHourCandles,
   fiveMinCandles,
   config,
-  cachedIndicatorValues
+  cachedIndicatorValues,
+  initialPosition = 'cash'
 ) {
   const trades = []
-  let position = 0
-  let balance = 1000000
-  let holdings = 0
-  let buyPrice = 0
-
   const fiveMin = generateCandleData(twoHourCandles, fiveMinCandles)
   
   if (fiveMin.length === 0) {
@@ -270,15 +325,25 @@ function runTradingSimulation(
       totalReturn: 0,
       tradeCount: 0,
       trades: [],
-      finalBalance: balance
+      finalBalance: 1000000
     }
   }
 
-  const indicatorValues = cachedIndicatorValues || []
-
-  if (!cachedIndicatorValues || cachedIndicatorValues.length === 0) {
-    console.warn('No cached indicator values provided')
+  // 초기 포지션 설정
+  let position = initialPosition === 'coin' ? 1 : 0
+  let balance = 1000000
+  let holdings = 0
+  let buyPrice = 0
+  
+  // 코인 보유로 시작하는 경우
+  if (initialPosition === 'coin') {
+    const firstPrice = fiveMin[0].close
+    holdings = balance / firstPrice
+    balance = 0
+    buyPrice = firstPrice
   }
+
+  const indicatorValues = cachedIndicatorValues || []
 
   const startIndex = Math.max(config.buyConditionCount, config.sellConditionCount)
 
@@ -356,7 +421,8 @@ function runGridSimulation(
   sellThresholdMin,
   sellThresholdMax,
   indicators, // 지표 설정 ✨
-  decimalPlaces // 소수점 자릿수 ✨
+  decimalPlaces, // 소수점 자릿수 ✨
+  initialPosition // 초기 포지션 ✨
 ) {
   const results = []
   const buyThresholds = []
@@ -446,7 +512,8 @@ function runGridSimulation(
         twoHourCandles,
         fiveMin,
         config,
-        cachedIndicatorValues
+        cachedIndicatorValues,
+        initialPosition
       )
       
       row.push({
@@ -477,4 +544,122 @@ function runGridSimulation(
     buyThresholds: buyThresholds,
     sellThresholds: sellThresholds
   })
+}
+
+/**
+ * 상세 거래 내역 생성
+ */
+function runDetailedSimulation(
+  twoHourCandles,
+  fiveMinCandles,
+  buyConditionCount,
+  sellConditionCount,
+  buyThreshold,
+  sellThreshold,
+  indicators,
+  initialPosition = 'cash'
+) {
+  const fiveMin = generateCandleData(twoHourCandles, fiveMinCandles)
+  
+  if (fiveMin.length === 0) {
+    return []
+  }
+
+  const config = {
+    buyConditionCount,
+    buyThreshold,
+    sellConditionCount,
+    sellThreshold
+  }
+
+  const details = []
+  
+  // 초기 포지션 설정
+  let position = initialPosition === 'coin' ? 1 : 0
+  let balance = 1000000
+  let holdings = 0
+  let buyPrice = 0
+  
+  const firstPrice = fiveMin[0].close
+  const initialPrice = firstPrice
+  
+  // 코인 보유로 시작하는 경우
+  if (initialPosition === 'coin') {
+    holdings = balance / firstPrice
+    balance = 0
+    buyPrice = firstPrice
+  }
+
+  // 지표 값 저장 배열
+  const indicatorValues = []
+
+  // 각 5분 캔들마다 순회
+  for (let i = 0; i < fiveMin.length; i++) {
+    const currentCandle = fiveMin[i]
+    
+    // 지표 계산 (runGridSimulation과 동일한 lookback 로직 사용)
+    const lookbackPeriod = Math.min(120, i + 1)
+    const candlesForIndicator = fiveMin.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
+    
+    const rankingValue = calculateRankingValue(candlesForIndicator, indicators)
+    indicatorValues.push(rankingValue)
+
+    let decision = 'hold'
+    const currentPrice = currentCandle.close
+
+    // 매수/매도 판단 (runTradingSimulation과 동일한 로직)
+    if (i >= config.buyConditionCount && position === 0) {
+      // 현재 값을 제외한 직전 N개
+      const recentValues = indicatorValues.slice(i - config.buyConditionCount, i)
+      const minValue = Math.min(...recentValues)
+      
+      // 매수 조건: min + (|min| * threshold)
+      const buyCondition = minValue + (Math.abs(minValue) * config.buyThreshold)
+      
+      if (rankingValue >= buyCondition) {
+        // 매수
+        holdings = balance / currentPrice
+        balance = 0
+        buyPrice = currentPrice
+        position = 1
+        decision = 'buy'
+      }
+    } else if (i >= config.sellConditionCount && position === 1) {
+      // 현재 값을 제외한 직전 N개
+      const recentValues = indicatorValues.slice(i - config.sellConditionCount, i)
+      const maxValue = Math.max(...recentValues)
+      
+      // 매도 조건: max - (|max| * threshold)
+      const sellCondition = maxValue - (Math.abs(maxValue) * config.sellThreshold)
+      
+      if (rankingValue <= sellCondition) {
+        // 매도
+        balance = holdings * currentPrice
+        holdings = 0
+        position = 0
+        decision = 'sell'
+      }
+    }
+
+    // 현재 수익률 계산
+    let currentBalance = balance
+    if (position === 1) {
+      currentBalance = holdings * currentPrice
+    }
+    const cumulativeReturn = ((currentBalance - 1000000) / 1000000) * 100
+
+    // 홀드 수익률 계산 (초기 포지션 기준)
+    const holdReturn = ((currentPrice - initialPrice) / initialPrice) * 100
+
+    details.push({
+      timestamp: currentCandle.timestamp,
+      rankingValue,
+      decision,
+      price: currentPrice,
+      cumulativeReturn,
+      holdReturn
+    })
+  }
+
+  return details
 }

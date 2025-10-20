@@ -5,6 +5,7 @@ import Button from './Button'
 export interface ButtonGroupOption<T = string> {
   value: T
   label: string
+  disabled?: boolean
 }
 
 interface ButtonGroupProps<T = string> {
@@ -29,10 +30,11 @@ export default function ButtonGroup<T extends string>({
       {options.map((option) => (
         <Button
           key={option.value}
-          onClick={() => onChange(option.value)}
+          onClick={() => !option.disabled && onChange(option.value)}
           variant={value === option.value ? 'primary' : 'outline'}
           size={size}
-          className={buttonClassName}
+          className={`${buttonClassName} ${option.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+          disabled={option.disabled}
         >
           {option.label}
         </Button>

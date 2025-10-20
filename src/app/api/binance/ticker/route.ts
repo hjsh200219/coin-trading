@@ -26,7 +26,6 @@ export async function GET() {
       source: 'binance',
     })
   } catch (error) {
-    console.error('Binance ticker API error:', error)
     return NextResponse.json(
       { 
         status: 'error', 

@@ -38,8 +38,6 @@ export async function GET() {
       data: tickerData,
     })
   } catch (error) {
-    console.error('업비트 시세 조회 에러:', error)
-
     return NextResponse.json(
       {
         success: false,

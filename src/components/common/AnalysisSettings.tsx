@@ -14,6 +14,7 @@ interface AnalysisSettingsProps {
   onTimeFrameChange: (timeFrame: TimeFrame) => void
   onBaseDateChange: (date: string) => void
   onIndicatorToggle: (indicator: keyof IndicatorConfig) => void
+  disabledExchanges?: Exchange[]
 }
 
 /**
@@ -31,6 +32,7 @@ export default function AnalysisSettings({
   onTimeFrameChange,
   onBaseDateChange,
   onIndicatorToggle,
+  disabledExchanges = [],
 }: AnalysisSettingsProps) {
   const indicatorLabels = {
     macd: 'MACD',
@@ -50,6 +52,7 @@ export default function AnalysisSettings({
           label="거래소"
           showLabel
           size="sm"
+          disabledExchanges={disabledExchanges}
         />
       </div>
 
@@ -80,6 +83,7 @@ export default function AnalysisSettings({
           label="거래소"
           showLabel
           size="sm"
+          disabledExchanges={disabledExchanges}
         />
 
         {/* 구분선 */}

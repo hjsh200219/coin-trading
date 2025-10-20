@@ -18,6 +18,16 @@ export default function SimulationTabLayout({ symbol, initialTab }: SimulationTa
 
   return (
     <div className="space-y-4">
+      {/* 코인 심볼 타이틀 */}
+      <div className="flex items-center gap-3">
+        <h1 className="text-lg md:text-xl font-bold text-foreground">
+          {symbol}
+        </h1>
+        <span className="text-sm md:text-base text-foreground/50">
+          시뮬레이션 분석
+        </span>
+      </div>
+
       {/* 탭 네비게이션 */}
       <div className="flex gap-2 border-b border-border pb-2 overflow-x-auto">
         <button

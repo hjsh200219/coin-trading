@@ -25,6 +25,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const timeframe = searchParams.get('timeFrame') || searchParams.get('timeframe') || '1d'
     const period = parseInt(searchParams.get('limit') || searchParams.get('period') || '200', 10)
     const baseDate = searchParams.get('baseDate') // 기준 날짜 (YYYY-MM-DD)
+    const endTime = searchParams.get('endTime') // 종료 시간 (밀리초 타임스탬프)
 
     // 최대 200개로 제한
     const count = Math.min(period, 200)
@@ -32,35 +33,49 @@ export async function GET(request: Request, { params }: RouteParams) {
     const marketCode = getUpbitMarketCode(symbol)
     
     // 기준 날짜를 타임스탬프로 변환 (밀리초)
-    const baseDateTimestamp = baseDate ? new Date(baseDate + 'T23:59:59+09:00').getTime() : Date.now()
+    let baseDateTimestamp: number
+    if (endTime) {
+      baseDateTimestamp = parseInt(endTime)
+    } else if (baseDate) {
+      baseDateTimestamp = new Date(baseDate + 'T23:59:59+09:00').getTime()
+    } else {
+      baseDateTimestamp = Date.now()
+    }
+
+    // Upbit API를 위한 ISO 8601 포맷 변환
+    const toParam = new Date(baseDateTimestamp).toISOString()
 
     let candles
 
-    // 타임프레임에 따라 적절한 API 호출
+    // 타임프레임에 따라 적절한 API 호출 (to 파라미터 포함)
     switch (timeframe) {
       case '1m':
-        candles = await getMinuteCandles(marketCode, 1, count)
+        candles = await getMinuteCandles(marketCode, 1, count, toParam)
         break
       case '3m':
-        candles = await getMinuteCandles(marketCode, 3, count)
+        candles = await getMinuteCandles(marketCode, 3, count, toParam)
         break
       case '5m':
-        candles = await getMinuteCandles(marketCode, 5, count)
+        candles = await getMinuteCandles(marketCode, 5, count, toParam)
         break
       case '15m':
-        candles = await getMinuteCandles(marketCode, 15, count)
+        candles = await getMinuteCandles(marketCode, 15, count, toParam)
         break
       case '30m':
-        candles = await getMinuteCandles(marketCode, 30, count)
+        candles = await getMinuteCandles(marketCode, 30, count, toParam)
         break
       case '1h':
-        candles = await getMinuteCandles(marketCode, 60, count)
+        candles = await getMinuteCandles(marketCode, 60, count, toParam)
+        break
+      case '2h':
+        // 2시간봉은 지원하지 않으므로 1시간봉 사용
+        candles = await getMinuteCandles(marketCode, 60, count * 2, toParam)
         break
       case '4h':
-        candles = await getMinuteCandles(marketCode, 240, count)
+        candles = await getMinuteCandles(marketCode, 240, count, toParam)
         break
       case '1d':
-        candles = await getDayCandles(marketCode, count)
+        candles = await getDayCandles(marketCode, count, toParam)
         break
       default:
         return NextResponse.json(
@@ -72,20 +87,16 @@ export async function GET(request: Request, { params }: RouteParams) {
         )
     }
 
-    // 공통 Candle 타입으로 변환 및 기준 날짜 필터링
+    // 공통 Candle 타입으로 변환
     const commonCandles = convertToCommonCandles(candles)
-      // 기준 날짜 이전 데이터만 필터링
+      // 기준 날짜 이전 데이터만 필터링 (안전장치)
       .filter((candle) => candle.timestamp <= baseDateTimestamp)
-      // 최신 count개 선택
-      .slice(-count)
 
     return NextResponse.json({
       success: true,
       data: commonCandles,
     })
   } catch (error) {
-    console.error('업비트 캔들 조회 에러:', error)
-
     return NextResponse.json(
       {
         success: false,

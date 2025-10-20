@@ -23,13 +23,21 @@ export async function GET(
     const timeFrame = (searchParams.get('timeFrame') || '1h') as TimeFrame
     const limit = parseInt(searchParams.get('limit') || '200')
     const baseDate = searchParams.get('baseDate') // 기준 날짜 (YYYY-MM-DD)
+    const endTime = searchParams.get('endTime') // 종료 시간 (밀리초 타임스탬프)
 
     const { symbol: symbolParam } = await params
     const symbol = symbolParam.toUpperCase()
     const interval = timeFrameMap[timeFrame]
     
     // 기준 날짜를 타임스탬프로 변환 (밀리초)
-    const baseDateTimestamp = baseDate ? new Date(baseDate + 'T23:59:59+09:00').getTime() : Date.now()
+    let baseDateTimestamp: number
+    if (endTime) {
+      baseDateTimestamp = parseInt(endTime)
+    } else if (baseDate) {
+      baseDateTimestamp = new Date(baseDate + 'T23:59:59+09:00').getTime()
+    } else {
+      baseDateTimestamp = Date.now()
+    }
 
     // 빗썸 캔들 API 호출
     const url = `https://api.bithumb.com/public/candlestick/${symbol}_KRW/${interval}`
@@ -51,29 +59,26 @@ export async function GET(
     }
 
     // 캔들 데이터 변환 및 기준 날짜 필터링
-    const candles: Candle[] = result.data
-      .map((item: any[]) => ({
-        timestamp: item[0],
-        open: parseFloat(item[1]),
-        close: parseFloat(item[2]),
-        high: parseFloat(item[3]),
-        low: parseFloat(item[4]),
-        volume: parseFloat(item[5]),
-      }))
-      // 기준 날짜 이전 데이터만 필터링
-      .filter((candle: Candle) => candle.timestamp <= baseDateTimestamp)
-      // 최신 limit개 선택
-      .slice(-limit)
+    const allCandles = result.data.map((item: any[]) => ({
+      timestamp: item[0],
+      open: parseFloat(item[1]),
+      close: parseFloat(item[2]),
+      high: parseFloat(item[3]),
+      low: parseFloat(item[4]),
+      volume: parseFloat(item[5]),
+    }))
+
+    const filteredCandles = allCandles.filter((candle: Candle) => candle.timestamp <= baseDateTimestamp)
+    const candles = filteredCandles.slice(-limit)
 
     return NextResponse.json({
       success: true,
       data: candles,
       symbol,
       timeFrame,
-      count: candles.length,
+      count: candles.length
     })
   } catch (error) {
-    console.error('캔들 데이터 조회 오류:', error)
     return NextResponse.json(
       {
         success: false,

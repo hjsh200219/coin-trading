@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { 
   createChart, 
   ColorType, 
@@ -31,6 +31,12 @@ export default function CandlestickChart({
   const maSeriesRefs = useRef<ISeriesApi<'Line'>[]>([])
   const priceLineRefs = useRef<any[]>([])
 
+  // MA 표시 상태 (기본값: 모두 off)
+  const [showMA5, setShowMA5] = useState(false)
+  const [showMA20, setShowMA20] = useState(false)
+  const [showMA60, setShowMA60] = useState(false)
+  const [showMA120, setShowMA120] = useState(false)
+
   useEffect(() => {
     if (!chartContainerRef.current || isLoading) return
 
@@ -54,16 +60,32 @@ export default function CandlestickChart({
       rightPriceScale: {
         visible: false, // y축 숨김
       },
+      crosshair: {
+        mode: 1, // 마그넷 모드
+        vertLine: {
+          width: 1,
+          color: '#758696',
+          style: 3, // 점선
+          labelBackgroundColor: '#3ecf8e',
+        },
+        horzLine: {
+          width: 1,
+          color: '#758696',
+          style: 3, // 점선
+          labelBackgroundColor: '#3ecf8e',
+        },
+      },
       localization: {
         timeFormatter: (timestamp: number) => {
           // Unix 타임스탬프(초)를 KST로 변환하여 표시
-          return new Date(timestamp * 1000).toLocaleString('ko-KR', {
-            timeZone: 'Asia/Seoul',
-            hour: '2-digit',
-            minute: '2-digit',
-            month: '2-digit',
-            day: '2-digit',
-          })
+          const date = new Date(timestamp * 1000)
+          const month = String(date.getMonth() + 1).padStart(2, '0')
+          const day = String(date.getDate()).padStart(2, '0')
+          const hour = String(date.getHours()).padStart(2, '0')
+          const minute = String(date.getMinutes()).padStart(2, '0')
+          
+          // 날짜와 시간 사이에 공백 2개로 가독성 향상
+          return `${month}/${day}  ${hour}:${minute}`
         },
       },
     })
@@ -155,32 +177,49 @@ export default function CandlestickChart({
 
       series.setData(formattedData)
 
-      // 이동평균선 계산 및 추가
-      const maData = calculateMultipleMA(data, [5, 20, 60, 120])
-      const maColors = ['#fbbf24', '#3ecf8e', '#8b5cf6', '#ec4899'] // 노랑, 초록, 보라, 핑크
+      // 이동평균선 계산 및 추가 (활성화된 것만)
+      const maPeriods = [
+        { period: 5, show: showMA5, color: '#fbbf24' },
+        { period: 20, show: showMA20, color: '#3ecf8e' },
+        { period: 60, show: showMA60, color: '#8b5cf6' },
+        { period: 120, show: showMA120, color: '#ec4899' },
+      ]
 
-      maData.forEach((ma, index) => {
-        const maSeries = chart.addSeries(LineSeries, {
-          color: maColors[index],
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
+      const activeMAPeriods = maPeriods.filter(ma => ma.show).map(ma => ma.period)
+      
+      if (activeMAPeriods.length > 0) {
+        const maData = calculateMultipleMA(data, activeMAPeriods)
+
+        maPeriods.forEach((maConfig, configIndex) => {
+          if (!maConfig.show) return
+
+          // activeMAPeriods에서의 인덱스 찾기
+          const dataIndex = activeMAPeriods.indexOf(maConfig.period)
+          if (dataIndex === -1) return
+
+          const ma = maData[dataIndex]
+          const maSeries = chart.addSeries(LineSeries, {
+            color: maConfig.color,
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+          })
+
+          // MA 데이터 포맷팅 (offset 고려)
+          const offset = data.length - ma.values.length
+          const maFormattedData = ma.values.map((value, i) => {
+            const candleIndex = offset + i
+            const timestamp = Math.floor(data[candleIndex].timestamp / 1000)
+            return {
+              time: timestamp as Time,
+              value: value,
+            }
+          })
+
+          maSeries.setData(maFormattedData)
+          maSeriesRefs.current.push(maSeries)
         })
-
-        // MA 데이터 포맷팅 (offset 고려)
-        const offset = data.length - ma.values.length
-        const maFormattedData = ma.values.map((value, i) => {
-          const candleIndex = offset + i
-          const timestamp = Math.floor(data[candleIndex].timestamp / 1000)
-          return {
-            time: timestamp as Time,
-            value: value,
-          }
-        })
-
-        maSeries.setData(maFormattedData)
-        maSeriesRefs.current.push(maSeries)
-      })
+      }
       
       // 최고가와 최저가 찾기
       const maxPrice = Math.max(...formattedData.map(d => d.high))
@@ -213,10 +252,10 @@ export default function CandlestickChart({
     } catch (error) {
       // disposed 에러 등 무시
       if (error instanceof Error && !error.message.includes('disposed')) {
-        console.error('차트 데이터 설정 오류:', error)
+        // 에러 무시 (프로덕션)
       }
     }
-  }, [data])
+  }, [data, showMA5, showMA20, showMA60, showMA120])
 
   if (isLoading) {
     return (
@@ -245,22 +284,50 @@ export default function CandlestickChart({
           <h2 className="text-xl font-bold text-foreground">{symbol} 가격 차트</h2>
           <div className="flex gap-3 items-center flex-wrap">
             <div className="flex gap-2 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-0.5 bg-[#fbbf24]" />
-                <span className="text-foreground/60">MA5</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-0.5 bg-[#3ecf8e]" />
-                <span className="text-foreground/60">MA20</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-0.5 bg-[#8b5cf6]" />
-                <span className="text-foreground/60">MA60</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-0.5 bg-[#ec4899]" />
-                <span className="text-foreground/60">MA120</span>
-              </div>
+              <button
+                onClick={() => setShowMA5(!showMA5)}
+                className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+                  showMA5
+                    ? 'bg-[#fbbf24]/20 text-[#fbbf24]'
+                    : 'text-foreground/40 hover:text-foreground/60'
+                }`}
+              >
+                <div className={`w-3 h-0.5 ${showMA5 ? 'bg-[#fbbf24]' : 'bg-foreground/40'}`} />
+                <span>MA5</span>
+              </button>
+              <button
+                onClick={() => setShowMA20(!showMA20)}
+                className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+                  showMA20
+                    ? 'bg-[#3ecf8e]/20 text-[#3ecf8e]'
+                    : 'text-foreground/40 hover:text-foreground/60'
+                }`}
+              >
+                <div className={`w-3 h-0.5 ${showMA20 ? 'bg-[#3ecf8e]' : 'bg-foreground/40'}`} />
+                <span>MA20</span>
+              </button>
+              <button
+                onClick={() => setShowMA60(!showMA60)}
+                className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+                  showMA60
+                    ? 'bg-[#8b5cf6]/20 text-[#8b5cf6]'
+                    : 'text-foreground/40 hover:text-foreground/60'
+                }`}
+              >
+                <div className={`w-3 h-0.5 ${showMA60 ? 'bg-[#8b5cf6]' : 'bg-foreground/40'}`} />
+                <span>MA60</span>
+              </button>
+              <button
+                onClick={() => setShowMA120(!showMA120)}
+                className={`flex items-center gap-1 px-2 py-1 rounded transition ${
+                  showMA120
+                    ? 'bg-[#ec4899]/20 text-[#ec4899]'
+                    : 'text-foreground/40 hover:text-foreground/60'
+                }`}
+              >
+                <div className={`w-3 h-0.5 ${showMA120 ? 'bg-[#ec4899]' : 'bg-foreground/40'}`} />
+                <span>MA120</span>
+              </button>
             </div>
             <p className="text-sm text-foreground/60">캔들: {data.length}개</p>
           </div>

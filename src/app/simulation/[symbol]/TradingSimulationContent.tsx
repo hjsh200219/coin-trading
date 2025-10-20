@@ -8,16 +8,26 @@ import type { GridSimulationResult } from '@/lib/simulation/tradingSimulation'
 import type { TimeFrame, Period, Exchange, IndicatorConfig } from '@/types/chart'
 import { calculateRequiredCandles } from '@/lib/utils/ranking'
 import type { Candle } from '@/lib/bithumb/types'
+import { formatChartTime } from '@/lib/utils/format'
 
 interface TradingSimulationContentProps {
   symbol: string
 }
 
+interface TradeDetail {
+  timestamp: number
+  rankingValue: number
+  decision: 'buy' | 'sell' | 'hold'
+  price: number
+  cumulativeReturn: number
+  holdReturn: number
+}
+
 export default function TradingSimulationContent({
   symbol
 }: TradingSimulationContentProps) {
-  // 분석 설정
-  const [exchange, setExchange] = useState<Exchange>('bithumb')
+  // 분석 설정 (시뮬레이션은 빗썸 제외, 기본값: Binance)
+  const [exchange, setExchange] = useState<Exchange>('binance')
   const [period, setPeriod] = useState<Period>('3M')
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('2h')
   const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().split('T')[0])
@@ -46,10 +56,46 @@ export default function TradingSimulationContent({
   const [using5Min, setUsing5Min] = useState<boolean | null>(null)
   const [progressMessage, setProgressMessage] = useState<string>('')
   const [decimalPlaces, setDecimalPlaces] = useState<2 | 3>(2) // 임계값 소수점 자릿수 (기본값: 2)
+  const [initialPosition, setInitialPosition] = useState<'cash' | 'coin'>('cash') // 초기 포지션 (기본값: 현금)
+  
+  // 상세 내역 모달
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [selectedDetail, setSelectedDetail] = useState<{
+    buyThreshold: number
+    sellThreshold: number
+    details: TradeDetail[]
+  } | null>(null)
+  const [detailsCache, setDetailsCache] = useState<Map<string, TradeDetail[]>>(new Map())
+  
+  // 모달 로딩 상태
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailLoadingProgress, setDetailLoadingProgress] = useState(0)
+  const [detailLoadingMessage, setDetailLoadingMessage] = useState('')
+  
+  // 모달 필터 옵션 (기본값: 매수/매도만 보기)
+  const [showAllTrades, setShowAllTrades] = useState(false)
   
   // Web Worker 참조
   const workerRef = useRef<Worker | null>(null)
   const cancelRef = useRef(false)
+
+  // ESC 키로 모달 닫기 및 필터 초기화
+  useEffect(() => {
+    if (!isDetailModalOpen) {
+      // 모달이 닫힐 때 필터 초기화
+      setShowAllTrades(false)
+      return
+    }
+
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsDetailModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleEscKey)
+    return () => window.removeEventListener('keydown', handleEscKey)
+  }, [isDetailModalOpen])
 
   // Worker 메시지 핸들러 설정
   const setupWorkerHandlers = (worker: Worker) => {
@@ -134,6 +180,74 @@ export default function TradingSimulationContent({
     return rounded.toLocaleString('en-US')
   }
 
+  /**
+   * 5분봉 데이터를 여러 번 호출하여 전체 기간 데이터 수집
+   */
+  const fetchMultiple5MinCandles = async (
+    requiredCount: number,
+    baseDateTimestamp: number,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<Candle[]> => {
+    const allCandles: Candle[] = []
+    
+    // 거래소별 API 제한
+    const batchSize = exchange === 'binance' ? 1000 : 200  // Binance: 1000, Bithumb/Upbit: 200
+    const totalBatches = Math.ceil(requiredCount / batchSize)
+    let currentEndTime = baseDateTimestamp
+    
+    const apiPrefix = exchange === 'bithumb' ? 'market' : exchange
+
+    for (let batchIndex = 0; batchIndex < totalBatches && allCandles.length < requiredCount; batchIndex++) {
+      try {
+        const url = `/api/${apiPrefix}/candles/${symbol}?timeFrame=5m&limit=${batchSize}&endTime=${currentEndTime}`
+        
+        const response = await fetch(url)
+        if (!response.ok) {
+          break
+        }
+
+        const result = await response.json()
+        
+        if (!result.success || !result.data || result.data.length === 0) {
+          break
+        }
+
+        // 중복 제거하며 데이터 추가
+        const newCandles = result.data.filter(
+          (candle: Candle) => !allCandles.some(c => c.timestamp === candle.timestamp)
+        )
+        
+        allCandles.push(...newCandles)
+
+        // 다음 배치를 위한 endTime 업데이트 (가장 오래된 캔들 - 1ms)
+        if (result.data.length > 0) {
+          const oldestCandle = result.data.reduce((oldest: Candle, current: Candle) => 
+            current.timestamp < oldest.timestamp ? current : oldest
+          )
+          currentEndTime = oldestCandle.timestamp - 1
+        }
+
+        // 진행률 보고
+        if (onProgress) {
+          onProgress(batchIndex + 1, totalBatches)
+        }
+
+        // Rate Limit 방지 (100ms 딜레이)
+        if (batchIndex < totalBatches - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+
+      } catch (error) {
+        break
+      }
+    }
+
+    // 시간순 정렬 (오래된 것부터)
+    const sortedCandles = allCandles.sort((a, b) => a.timestamp - b.timestamp)
+    
+    return sortedCandles
+  }
+
   const handleSimulate = async () => {
     // 매수 임계값 범위 검증
     if (buyThresholdMin >= buyThresholdMax) {
@@ -182,7 +296,6 @@ export default function TradingSimulationContent({
       // baseDate 파라미터 추가
       const url = `/api/${apiPath}/candles/${symbol}?timeFrame=${timeFrame}&limit=${requiredCandles}&baseDate=${baseDate}`
 
-      console.log('Fetching candles:', { url, baseDate, period, timeFrame })
       const response = await fetch(url)
       if (!response.ok) {
         throw new Error('캔들 데이터를 불러올 수 없습니다')
@@ -198,17 +311,20 @@ export default function TradingSimulationContent({
         throw new Error('데이터가 없습니다')
       }
 
-      // 2. 5분봉 데이터 로드 시도 (baseDate 포함)
-      const fiveMinUrl = `/api/${apiPath}/candles/${symbol}?timeFrame=5m&limit=${requiredCandles * 24}&baseDate=${baseDate}`
-      const fiveMinResponse = await fetch(fiveMinUrl)
+      // 2. 5분봉 데이터 로드 (다중 호출)
+      setProgressMessage('5분봉 데이터 로드 중...')
+      const required5MinCandles = requiredCandles * 24 // 2시간 = 24 × 5분
+      const baseDateTimestamp = new Date(baseDate + 'T23:59:59+09:00').getTime()
       
-      let fiveMinCandles: Candle[] = []
-      if (fiveMinResponse.ok) {
-        const fiveMinResult = await fiveMinResponse.json()
-        if (fiveMinResult.success && fiveMinResult.data.length > 0) {
-          fiveMinCandles = fiveMinResult.data
+      const fiveMinCandles = await fetchMultiple5MinCandles(
+        required5MinCandles,
+        baseDateTimestamp,
+        (current, total) => {
+          const progress = (current / total) * 50 // 0-50% 진행률
+          setProgress(progress)
+          setProgressMessage(`5분봉 데이터 로드 중... (${current}/${total})`)
         }
-      }
+      )
 
       // 3. 간단한 객체로 변환 (Worker에 전달용)
       const mainCandles = candles.map(c => ({
@@ -230,17 +346,6 @@ export default function TradingSimulationContent({
       const is5MinAvailable = fiveMinCandleData.length > 0
       setUsing5Min(is5MinAvailable)
 
-      console.log('Loaded candle data:', {
-        mainCandles: mainCandles.length,
-        fiveMinCandles: fiveMinCandleData.length,
-        exchange,
-        period,
-        timeFrame,
-        baseDate,
-        indicators,
-        using5Min: is5MinAvailable
-      })
-
       // 4. Web Worker에 시뮬레이션 작업 전달 ⚡
       if (workerRef.current) {
         workerRef.current.postMessage({
@@ -255,7 +360,8 @@ export default function TradingSimulationContent({
             sellThresholdMin,
             sellThresholdMax,
             indicators, // 지표 설정 추가 ✨
-            decimalPlaces // 소수점 자릿수 추가 ✨
+            decimalPlaces, // 소수점 자릿수 추가 ✨
+            initialPosition // 초기 포지션 추가 ✨
           }
         })
       } else {
@@ -325,6 +431,135 @@ export default function TradingSimulationContent({
     }
   }
 
+  /**
+   * 셀 클릭 시 상세 내역 표시
+   */
+  const handleCellClick = async (buyThreshold: number, sellThreshold: number) => {
+    const cacheKey = `${buyThreshold}-${sellThreshold}`
+    
+    // 캐시에 있으면 바로 표시
+    if (detailsCache.has(cacheKey)) {
+      setSelectedDetail({
+        buyThreshold,
+        sellThreshold,
+        details: detailsCache.get(cacheKey)!
+      })
+      setIsDetailModalOpen(true)
+      return
+    }
+
+    // Worker에 상세 내역 요청
+    if (!workerRef.current) {
+      alert('시뮬레이션이 준비되지 않았습니다.')
+      return
+    }
+
+    // 로딩 시작
+    setIsDetailLoading(true)
+    setDetailLoadingProgress(0)
+    setDetailLoadingMessage('데이터 로드 준비 중...')
+
+    // 일회성 메시지 핸들러 설정
+    const handleDetailMessage = (e: MessageEvent) => {
+      const { type, details, error } = e.data
+
+      if (type === 'DETAIL_COMPLETE') {
+        // 캐시에 저장
+        const newCache = new Map(detailsCache)
+        newCache.set(cacheKey, details)
+        setDetailsCache(newCache)
+
+        // 모달 표시
+        setSelectedDetail({
+          buyThreshold,
+          sellThreshold,
+          details
+        })
+        setIsDetailModalOpen(true)
+        setIsDetailLoading(false)
+
+        // 핸들러 제거
+        workerRef.current?.removeEventListener('message', handleDetailMessage)
+      } else if (type === 'ERROR') {
+        alert(`상세 내역 생성 중 오류가 발생했습니다: ${error}`)
+        setIsDetailLoading(false)
+        workerRef.current?.removeEventListener('message', handleDetailMessage)
+      }
+    }
+
+    workerRef.current.addEventListener('message', handleDetailMessage)
+
+    // 거래소별 API 경로 설정
+    const apiPrefix = exchange === 'bithumb' ? 'market' : exchange
+
+    // 필요한 캔들 개수 계산 (handleSimulate와 동일하게)
+    const requiredCandles = calculateRequiredCandles(period, timeFrame)
+    const required5MinCandles = requiredCandles * 24
+    const baseDateTimestamp = new Date(baseDate + 'T23:59:59+09:00').getTime()
+
+    try {
+      // 메인 캔들 가져오기
+      setDetailLoadingMessage('메인 캔들 데이터 로드 중...')
+      setDetailLoadingProgress(10)
+      
+      const mainCandlesUrl = `/api/${apiPrefix}/candles/${symbol}?timeFrame=${timeFrame}&limit=${requiredCandles}&baseDate=${baseDate}`
+      const mainRes = await fetch(mainCandlesUrl)
+      
+      if (!mainRes.ok) {
+        throw new Error(`API 오류: ${mainRes.status}`)
+      }
+
+      const mainResult = await mainRes.json()
+      if (!mainResult.success || !mainResult.data) {
+        throw new Error('메인 캔들 데이터를 불러올 수 없습니다.')
+      }
+
+      const mainCandles = mainResult.data.map((c: Candle) => ({
+        timestamp: c.timestamp,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close
+      }))
+
+      // 5분봉 데이터 다중 호출로 가져오기
+      setDetailLoadingMessage('5분봉 데이터 로드 중...')
+      const fiveMinCandles = await fetchMultiple5MinCandles(
+        required5MinCandles,
+        baseDateTimestamp,
+        (current, total) => {
+          // 10% ~ 80% 진행률 (데이터 로딩)
+          const progress = 10 + (current / total) * 70
+          setDetailLoadingProgress(progress)
+          setDetailLoadingMessage(`5분봉 데이터 로드 중... (${current}/${total})`)
+        }
+      )
+
+      setDetailLoadingMessage('상세 내역 생성 중...')
+      setDetailLoadingProgress(85)
+
+      // Worker에 메시지 전송
+      workerRef.current.postMessage({
+        type: 'GET_DETAIL',
+        data: {
+          mainCandles,
+          fiveMinCandles: fiveMinCandles.length > 0 ? fiveMinCandles : mainCandles,
+          buyConditionCount,
+          sellConditionCount,
+          buyThreshold,
+          sellThreshold,
+          indicators,
+          initialPosition
+        }
+      })
+    } catch (error) {
+      alert('데이터를 불러오는 중 오류가 발생했습니다.')
+      console.error(error)
+      setIsDetailLoading(false)
+      workerRef.current.removeEventListener('message', handleDetailMessage)
+    }
+  }
+
   // buyThresholds와 sellThresholds는 Worker 결과에서 state로 관리됨
 
   return (
@@ -346,6 +581,7 @@ export default function TradingSimulationContent({
               onTimeFrameChange={setTimeFrame}
               onBaseDateChange={setBaseDate}
               onIndicatorToggle={handleIndicatorToggle}
+              disabledExchanges={['bithumb']}
             />
 
             {/* 3행: 시뮬레이션 설정 */}
@@ -424,6 +660,33 @@ export default function TradingSimulationContent({
                 />
               </div>
 
+              {/* 모바일: 초기 포지션 */}
+              <div className="md:hidden flex items-center gap-2 text-xs">
+                <span className="font-medium text-foreground/70 whitespace-nowrap">초기 포지션</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setInitialPosition('cash')}
+                    className={`px-3 py-1 rounded transition ${
+                      initialPosition === 'cash'
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    현금
+                  </button>
+                  <button
+                    onClick={() => setInitialPosition('coin')}
+                    className={`px-3 py-1 rounded transition ${
+                      initialPosition === 'coin'
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    코인
+                  </button>
+                </div>
+              </div>
+
               {/* 모바일: 임계값 표시 */}
               <div className="md:hidden space-y-1">
                 <div className="flex items-center gap-2 text-xs">
@@ -459,7 +722,7 @@ export default function TradingSimulationContent({
               </div>
 
               {/* 데스크톱: 한 줄로 표시 */}
-              <div className="hidden md:flex items-center gap-3 flex-wrap">
+              <div className="hidden md:flex items-center gap-5 flex-wrap">
                 {/* 매수 조건 */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">매수 조건</span>
@@ -541,6 +804,36 @@ export default function TradingSimulationContent({
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
+                </div>
+
+                {/* 구분선 */}
+                <div className="w-px h-6 bg-border" />
+
+                {/* 초기 포지션 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">초기 포지션</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setInitialPosition('cash')}
+                      className={`px-2 py-1 rounded transition text-xs ${
+                        initialPosition === 'cash'
+                          ? 'bg-brand text-background font-medium'
+                          : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                      }`}
+                    >
+                      현금
+                    </button>
+                    <button
+                      onClick={() => setInitialPosition('coin')}
+                      className={`px-2 py-1 rounded transition text-xs ${
+                        initialPosition === 'coin'
+                          ? 'bg-brand text-background font-medium'
+                          : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                      }`}
+                    >
+                      코인
+                    </button>
+                  </div>
                 </div>
 
                 {/* 구분선 */}
@@ -698,12 +991,13 @@ export default function TradingSimulationContent({
                       return (
                         <td
                           key={colIdx}
-                          className="border border-border p-2 text-center cursor-pointer hover:opacity-80"
+                          className="border border-border p-2 text-center cursor-pointer hover:opacity-80 hover:ring-2 hover:ring-brand transition"
                           style={{
                             backgroundColor: colors.background,
                             color: colors.text
                           }}
-                          title={`매수: ${cell.buyThreshold.toFixed(decimalPlaces)}, 매도: ${cell.sellThreshold.toFixed(decimalPlaces)}\n수익률: ${formatReturn(cell.totalReturn)}%\n거래 횟수: ${cell.tradeCount}`}
+                          title={`매수: ${cell.buyThreshold.toFixed(decimalPlaces)}, 매도: ${cell.sellThreshold.toFixed(decimalPlaces)}\n수익률: ${formatReturn(cell.totalReturn)}%\n거래 횟수: ${cell.tradeCount}\n클릭하여 상세 내역 보기`}
+                          onClick={() => handleCellClick(cell.buyThreshold, cell.sellThreshold)}
                         >
                           {formatReturn(cell.totalReturn)}%
                         </td>
@@ -726,6 +1020,180 @@ export default function TradingSimulationContent({
             )}
           </div>
         </Card>
+      )}
+
+      {/* 상세 내역 로딩 */}
+      {isDetailLoading && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md p-6">
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-foreground mb-2">
+                  상세 내역 생성 중
+                </h3>
+                <p className="text-sm text-foreground/70">
+                  {detailLoadingMessage}
+                </p>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-foreground/70">진행률</span>
+                  <span className="font-medium text-brand">
+                    {detailLoadingProgress.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="w-full bg-surface-100 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full transition-all duration-300 rounded-full bg-brand"
+                    style={{ width: `${detailLoadingProgress}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* 애니메이션 */}
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand" />
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* 상세 내역 모달 */}
+      {isDetailModalOpen && selectedDetail && (
+        <div 
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setIsDetailModalOpen(false)}
+        >
+          <Card 
+            className="w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div className="p-4 border-b border-border">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h2 className="text-xl font-bold">거래 상세 내역</h2>
+                  <p className="text-sm text-foreground/70 mt-1">
+                    매수 임계값: {selectedDetail.buyThreshold.toFixed(decimalPlaces)} | 
+                    매도 임계값: {selectedDetail.sellThreshold.toFixed(decimalPlaces)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsDetailModalOpen(false)}
+                  className="p-2 hover:bg-surface-100 rounded transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* 필터 토글 */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-foreground/70">표시 옵션:</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setShowAllTrades(false)}
+                    className={`px-3 py-1 rounded text-xs transition ${
+                      !showAllTrades
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    매수/매도만
+                  </button>
+                  <button
+                    onClick={() => setShowAllTrades(true)}
+                    className={`px-3 py-1 rounded text-xs transition ${
+                      showAllTrades
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    전체 보기
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 내용 */}
+            <div className="flex-1 overflow-auto p-4">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-xs">
+                  <thead className="sticky top-0 bg-surface z-10">
+                    <tr>
+                      <th className="border border-border p-2 bg-surface-75 text-left whitespace-nowrap sticky top-0">시간</th>
+                      <th className="border border-border p-2 bg-surface-75 text-right sticky top-0">Ranking Value</th>
+                      <th className="border border-border p-2 bg-surface-75 text-center sticky top-0">판단</th>
+                      <th className="border border-border p-2 bg-surface-75 text-right sticky top-0">가격</th>
+                      <th className="border border-border p-2 bg-surface-75 text-right sticky top-0">누적 수익률</th>
+                      <th className="border border-border p-2 bg-surface-75 text-right sticky top-0">홀드 수익률</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedDetail.details
+                      .filter(detail => showAllTrades || detail.decision !== 'hold')
+                      .map((detail, idx) => (
+                      <tr 
+                        key={idx}
+                        className={detail.decision !== 'hold' ? 'bg-surface-75/50' : ''}
+                      >
+                        <td className="border border-border p-2 whitespace-nowrap">
+                          {formatChartTime(detail.timestamp)}
+                        </td>
+                        <td className="border border-border p-2 text-right">
+                          {detail.rankingValue.toFixed(3)}
+                        </td>
+                        <td className="border border-border p-2 text-center">
+                          {detail.decision === 'buy' && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">매수</span>
+                          )}
+                          {detail.decision === 'sell' && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">매도</span>
+                          )}
+                          {detail.decision === 'hold' && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-surface-100 text-foreground/50">-</span>
+                          )}
+                        </td>
+                        <td className="border border-border p-2 text-right">
+                          {detail.price.toLocaleString()}
+                        </td>
+                        <td className={`border border-border p-2 text-right font-medium ${
+                          detail.cumulativeReturn > 0 ? 'text-red-400' : 
+                          detail.cumulativeReturn < 0 ? 'text-blue-400' : 
+                          'text-foreground/70'
+                        }`}>
+                          {detail.cumulativeReturn.toFixed(2)}%
+                        </td>
+                        <td className={`border border-border p-2 text-right font-medium ${
+                          detail.holdReturn > 0 ? 'text-red-400' : 
+                          detail.holdReturn < 0 ? 'text-blue-400' : 
+                          'text-foreground/70'
+                        }`}>
+                          {detail.holdReturn.toFixed(2)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 푸터 */}
+            <div className="p-4 border-t border-border flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setIsDetailModalOpen(false)}
+                size="sm"
+              >
+                닫기
+              </Button>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   )
