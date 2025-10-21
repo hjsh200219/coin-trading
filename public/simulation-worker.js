@@ -64,7 +64,9 @@ self.onmessage = function(e) {
         buyThreshold,
         sellThreshold,
         indicators,
-        initialPosition
+        initialPosition,
+        baseDate,
+        period
       } = data
 
       // 상세 내역 생성
@@ -76,7 +78,9 @@ self.onmessage = function(e) {
         buyThreshold,
         sellThreshold,
         indicators,
-        initialPosition
+        initialPosition,
+        baseDate,
+        period
       )
 
       self.postMessage({
@@ -557,7 +561,9 @@ function runDetailedSimulation(
   buyThreshold,
   sellThreshold,
   indicators,
-  initialPosition = 'cash'
+  initialPosition = 'cash',
+  baseDate = null,
+  period = null
 ) {
   const fiveMin = generateCandleData(twoHourCandles, fiveMinCandles)
   
@@ -580,8 +586,32 @@ function runDetailedSimulation(
   let holdings = 0
   let buyPrice = 0
   
+  // 분석 시작 시점의 가격 찾기
+  let analysisStartPrice = fiveMin[0].close
+  
+  if (baseDate && period) {
+    // baseDate와 period로 분석 시작 timestamp 계산
+    const baseDateObj = new Date(baseDate + 'T23:59:59+09:00')
+    const periodDays = {
+      '1M': 30,
+      '3M': 90,
+      '6M': 180,
+      '1Y': 365
+    }[period] || 90
+    
+    const analysisStartTimestamp = baseDateObj.getTime() - (periodDays * 24 * 60 * 60 * 1000)
+    
+    // 분석 시작 시점에 가장 가까운 캔들 찾기
+    for (let i = 0; i < fiveMin.length; i++) {
+      if (fiveMin[i].timestamp >= analysisStartTimestamp) {
+        analysisStartPrice = fiveMin[i].close
+        break
+      }
+    }
+  }
+  
   const firstPrice = fiveMin[0].close
-  const initialPrice = firstPrice
+  const initialPrice = analysisStartPrice  // 홀드 수익률 계산용
   
   // 코인 보유로 시작하는 경우
   if (initialPosition === 'coin') {

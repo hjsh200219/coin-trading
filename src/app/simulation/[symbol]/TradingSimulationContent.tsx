@@ -549,7 +549,9 @@ export default function TradingSimulationContent({
           buyThreshold,
           sellThreshold,
           indicators,
-          initialPosition
+          initialPosition,
+          baseDate,
+          period
         }
       })
     } catch (error) {
