@@ -100,6 +100,8 @@ export default function ChartControls({
             label="기간"
             showLabel
             size="sm"
+            exchange={exchange}
+            timeFrame={timeFrame}
           />
         </div>
 

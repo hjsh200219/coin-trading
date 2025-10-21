@@ -19,20 +19,103 @@ export default function CoinDetailContent({ coin }: CoinDetailContentProps) {
   const [period, setPeriod] = useState<Period>('1M')
   const [baseDate, setBaseDate] = useState<Date>(new Date())
 
-  // 기간에 따른 캔들 개수 계산
-  const getLimitByPeriod = (period: Period): number => {
-    const periodMap: Record<Period, number> = {
-      '1M': 30 * 24,   // 1개월
-      '3M': 90 * 24,   // 3개월
-      '6M': 180 * 24,  // 6개월
-      '1Y': 365 * 24,  // 1년
-      '2Y': 730 * 24,  // 2년
-      '3Y': 1095 * 24, // 3년
+  // 거래소/타임프레임 변경 시 선택 불가능한 기간이면 자동 조정
+  const handleExchangeChange = (newExchange: Exchange) => {
+    setExchange(newExchange)
+    
+    // 새 거래소에서 현재 기간이 불가능한지 확인
+    const maxCandles = MAX_CANDLES[newExchange]
+    const candlesPerDay: Record<TimeFrame, number> = {
+      '1h': 24,
+      '2h': 12,
+      '4h': 6,
+      '1d': 1,
+    }
+    const periodDays: Record<Period, number> = {
+      '1M': 30,
+      '3M': 90,
+      '6M': 180,
+      '1Y': 365,
+      '2Y': 730,
+      '3Y': 1095,
     }
     
-    // 타임프레임에 따라 조정
-    const multiplier = timeFrame === '1d' ? 1 : timeFrame === '4h' ? 6 : timeFrame === '2h' ? 12 : timeFrame === '1h' ? 24 : 48
-    return Math.min(periodMap[period] * multiplier / 24, 500) // 최대 500개로 제한
+    const requiredCandles = periodDays[period] * candlesPerDay[timeFrame]
+    if (requiredCandles > maxCandles) {
+      // 가능한 최대 기간으로 자동 조정
+      const maxDays = Math.floor(maxCandles / candlesPerDay[timeFrame])
+      if (maxDays >= 1095) setPeriod('3Y')
+      else if (maxDays >= 730) setPeriod('2Y')
+      else if (maxDays >= 365) setPeriod('1Y')
+      else if (maxDays >= 180) setPeriod('6M')
+      else if (maxDays >= 90) setPeriod('3M')
+      else setPeriod('1M')
+    }
+  }
+
+  const handleTimeFrameChange = (newTimeFrame: TimeFrame) => {
+    setTimeFrame(newTimeFrame)
+    
+    // 새 타임프레임에서 현재 기간이 불가능한지 확인
+    const maxCandles = MAX_CANDLES[exchange]
+    const candlesPerDay: Record<TimeFrame, number> = {
+      '1h': 24,
+      '2h': 12,
+      '4h': 6,
+      '1d': 1,
+    }
+    const periodDays: Record<Period, number> = {
+      '1M': 30,
+      '3M': 90,
+      '6M': 180,
+      '1Y': 365,
+      '2Y': 730,
+      '3Y': 1095,
+    }
+    
+    const requiredCandles = periodDays[period] * candlesPerDay[newTimeFrame]
+    if (requiredCandles > maxCandles) {
+      // 가능한 최대 기간으로 자동 조정
+      const maxDays = Math.floor(maxCandles / candlesPerDay[newTimeFrame])
+      if (maxDays >= 1095) setPeriod('3Y')
+      else if (maxDays >= 730) setPeriod('2Y')
+      else if (maxDays >= 365) setPeriod('1Y')
+      else if (maxDays >= 180) setPeriod('6M')
+      else if (maxDays >= 90) setPeriod('3M')
+      else setPeriod('1M')
+    }
+  }
+
+  // 거래소별 최대 캔들 개수
+  const MAX_CANDLES: Record<Exchange, number> = {
+    bithumb: 500,
+    upbit: 200,
+    binance: 1000,
+  }
+
+  // 기간에 따른 캔들 개수 계산
+  const getLimitByPeriod = (period: Period): number => {
+    const periodDays: Record<Period, number> = {
+      '1M': 30,
+      '3M': 90,
+      '6M': 180,
+      '1Y': 365,
+      '2Y': 730,
+      '3Y': 1095,
+    }
+    
+    // 타임프레임별 하루당 캔들 개수
+    const candlesPerDay: Record<TimeFrame, number> = {
+      '1h': 24,
+      '2h': 12,
+      '4h': 6,
+      '1d': 1,
+    }
+    
+    const requiredCandles = periodDays[period] * candlesPerDay[timeFrame]
+    const maxCandles = MAX_CANDLES[exchange]
+    
+    return Math.min(requiredCandles, maxCandles)
   }
 
   const { data: rawCandles, isLoading, error } = useCandleData({
@@ -90,8 +173,8 @@ export default function CoinDetailContent({ coin }: CoinDetailContentProps) {
 
       {/* 차트 컨트롤 (거래소, 타임프레임 및 기간 선택) */}
       <ChartControls
-        onExchangeChange={setExchange}
-        onTimeFrameChange={setTimeFrame}
+        onExchangeChange={handleExchangeChange}
+        onTimeFrameChange={handleTimeFrameChange}
         onPeriodChange={setPeriod}
         onBaseDateChange={setBaseDate}
         showExchange={true}
