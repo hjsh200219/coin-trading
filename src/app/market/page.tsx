@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card'
 
 export const metadata = {
   title: '시세 조회 | Coin Trading',
-  description: '빗썸 거래소의 실시간 코인 시세를 확인하세요',
+  description: 'Bithumb 거래소의 실시간 코인 시세를 확인하세요',
 }
 
 async function MarketData() {

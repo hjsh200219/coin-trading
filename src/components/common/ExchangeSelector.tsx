@@ -71,21 +71,21 @@ export default function ExchangeSelector({
           variant={exchange === 'bithumb' ? 'primary' : 'outline'}
           size="sm"
         >
-          빗썸 (Bithumb)
+          Bithumb
         </Button>
         <Button
           onClick={() => onExchangeChange('upbit')}
           variant={exchange === 'upbit' ? 'primary' : 'outline'}
           size="sm"
         >
-          업비트 (Upbit)
+          Upbit
         </Button>
         <Button
           onClick={() => onExchangeChange('binance')}
           variant={exchange === 'binance' ? 'primary' : 'outline'}
           size="sm"
         >
-          바이낸스 (Binance)
+          Binance
         </Button>
       </div>
 
@@ -104,9 +104,9 @@ export default function ExchangeSelector({
               />
               <span className={`text-sm font-medium ${getStatusColor()}`}>
                 {exchange === 'binance' 
-                  ? '수동 모드 (바이낸스)' 
+                  ? '수동 모드 (Binance)' 
                   : exchange === 'upbit'
-                    ? '수동 모드 (업비트)'
+                    ? '수동 모드 (Upbit)'
                     : useAutoRefresh 
                       ? getStatusText() 
                       : '수동 모드'}
