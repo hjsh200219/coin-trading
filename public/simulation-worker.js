@@ -588,8 +588,10 @@ function runDetailedSimulation(
   let holdings = 0
   let buyPrice = 0
   
-  // 분석 시작 시점의 가격 찾기
+  // 분석 시작 시점의 가격과 인덱스 찾기
   let analysisStartPrice = fiveMin[0].close
+  let analysisStartTimestamp = 0
+  let analysisStartIndex = 0
   
   if (baseDate && period) {
     // baseDate와 period로 분석 시작 timestamp 계산
@@ -601,12 +603,13 @@ function runDetailedSimulation(
       '1Y': 365
     }[period] || 90
     
-    const analysisStartTimestamp = baseDateObj.getTime() - (periodDays * 24 * 60 * 60 * 1000)
+    analysisStartTimestamp = baseDateObj.getTime() - (periodDays * 24 * 60 * 60 * 1000)
     
     // 분석 시작 시점에 가장 가까운 캔들 찾기
     for (let i = 0; i < fiveMin.length; i++) {
       if (fiveMin[i].timestamp >= analysisStartTimestamp) {
         analysisStartPrice = fiveMin[i].close
+        analysisStartIndex = i
         break
       }
     }
@@ -638,6 +641,9 @@ function runDetailedSimulation(
 
     let decision = 'hold'
     const currentPrice = currentCandle.close
+    
+    // 분석 시작 시점 이전 데이터는 details에 포함하지 않음 (거래는 진행)
+    const shouldIncludeInDetails = i >= analysisStartIndex
 
     // 매수/매도 판단 (runTradingSimulation과 동일한 로직)
     if (i >= config.buyConditionCount && position === 0) {
@@ -673,31 +679,32 @@ function runDetailedSimulation(
       }
     }
 
-    // 현재 수익률 계산
-    let currentBalance = balance
-    if (position === 1) {
-      currentBalance = holdings * currentPrice
+    // 분석 시작 시점 이후 데이터만 details에 추가
+    if (shouldIncludeInDetails) {
+      // 현재 수익률 계산
+      let currentBalance = balance
+      if (position === 1) {
+        currentBalance = holdings * currentPrice
+      }
+      const cumulativeReturn = ((currentBalance - 1000000) / 1000000) * 100
+
+      // 홀드 수익률 계산 (분석 시작 가격 기준)
+      const holdReturn = ((currentPrice - initialPrice) / initialPrice) * 100
+
+      details.push({
+        timestamp: currentCandle.timestamp,
+        rankingValue,
+        decision,
+        price: currentPrice,
+        cumulativeReturn,
+        holdReturn
+      })
     }
-    const cumulativeReturn = ((currentBalance - 1000000) / 1000000) * 100
-
-    // 홀드 수익률 계산 (초기 포지션 기준)
-    const holdReturn = ((currentPrice - initialPrice) / initialPrice) * 100
-
-    details.push({
-      timestamp: currentCandle.timestamp,
-      rankingValue,
-      decision,
-      price: currentPrice,
-      cumulativeReturn,
-      holdReturn
-    })
   }
 
   return {
     details,
     analysisStartPrice,
-    analysisStartTimestamp: analysisStartPrice !== fiveMin[0].close 
-      ? fiveMin.find(c => c.close === analysisStartPrice)?.timestamp || fiveMin[0].timestamp
-      : fiveMin[0].timestamp
+    analysisStartTimestamp: fiveMin[analysisStartIndex]?.timestamp || fiveMin[0].timestamp
   }
 }
