@@ -9,6 +9,7 @@ import type { TimeFrame, Period, Exchange, IndicatorConfig } from '@/types/chart
 import { calculateRequiredCandles } from '@/lib/utils/ranking'
 import type { Candle } from '@/lib/bithumb/types'
 import { formatChartTime } from '@/lib/utils/format'
+import { fetchMultipleCandles as fetchCandlesApi, API_LIMITS, getApiPath } from '@/lib/api/candleApi'
 
 interface TradingSimulationContentProps {
   symbol: string
@@ -197,64 +198,21 @@ export default function TradingSimulationContent({
     baseDateTimestamp: number,
     onProgress?: (current: number, total: number) => void
   ): Promise<Candle[]> => {
-    const allCandles: Candle[] = []
-    
-    // 거래소별 API 제한
-    const batchSize = exchange === 'binance' ? 1000 : 200  // Binance: 1000, Bithumb/Upbit: 200
-    const totalBatches = Math.ceil(requiredCount / batchSize)
-    let currentEndTime = baseDateTimestamp
-    
-    const apiPrefix = exchange === 'bithumb' ? 'market' : exchange
+    // 5분봉 기준으로 필요한 시간 범위 계산
+    const fiveMinMs = 5 * 60 * 1000
+    const startTimestamp = baseDateTimestamp - (requiredCount * fiveMinMs)
 
-    for (let batchIndex = 0; batchIndex < totalBatches && allCandles.length < requiredCount; batchIndex++) {
-      try {
-        const url = `/api/${apiPrefix}/candles/${symbol}?timeFrame=5m&limit=${batchSize}&endTime=${currentEndTime}`
-        
-        const response = await fetch(url)
-        if (!response.ok) {
-          break
-        }
+    const result = await fetchCandlesApi({
+      symbol,
+      exchange,
+      timeFrame: '5m',
+      startTimestamp,
+      endTimestamp: baseDateTimestamp,
+      maxIterations: 20,
+      onProgress,
+    })
 
-        const result = await response.json()
-        
-        if (!result.success || !result.data || result.data.length === 0) {
-          break
-        }
-
-        // 중복 제거하며 데이터 추가
-        const newCandles = result.data.filter(
-          (candle: Candle) => !allCandles.some(c => c.timestamp === candle.timestamp)
-        )
-        
-        allCandles.push(...newCandles)
-
-        // 다음 배치를 위한 endTime 업데이트 (가장 오래된 캔들 - 1ms)
-        if (result.data.length > 0) {
-          const oldestCandle = result.data.reduce((oldest: Candle, current: Candle) => 
-            current.timestamp < oldest.timestamp ? current : oldest
-          )
-          currentEndTime = oldestCandle.timestamp - 1
-        }
-
-        // 진행률 보고
-        if (onProgress) {
-          onProgress(batchIndex + 1, totalBatches)
-        }
-
-        // Rate Limit 방지 (100ms 딜레이)
-        if (batchIndex < totalBatches - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100))
-        }
-
-      } catch (error) {
-        break
-      }
-    }
-
-    // 시간순 정렬 (오래된 것부터)
-    const sortedCandles = allCandles.sort((a, b) => a.timestamp - b.timestamp)
-    
-    return sortedCandles
+    return result.slice(0, requiredCount)
   }
 
   const handleSimulate = async () => {
