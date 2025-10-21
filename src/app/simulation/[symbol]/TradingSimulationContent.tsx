@@ -23,6 +23,12 @@ interface TradeDetail {
   holdReturn: number
 }
 
+interface DetailResponse {
+  details: TradeDetail[]
+  analysisStartPrice: number
+  analysisStartTimestamp: number
+}
+
 export default function TradingSimulationContent({
   symbol
 }: TradingSimulationContentProps) {
@@ -64,8 +70,11 @@ export default function TradingSimulationContent({
     buyThreshold: number
     sellThreshold: number
     details: TradeDetail[]
+    analysisStartPrice: number
+    analysisStartTimestamp: number
+    exchange: Exchange
   } | null>(null)
-  const [detailsCache, setDetailsCache] = useState<Map<string, TradeDetail[]>>(new Map())
+  const [detailsCache, setDetailsCache] = useState<Map<string, DetailResponse>>(new Map())
   
   // 모달 로딩 상태
   const [isDetailLoading, setIsDetailLoading] = useState(false)
@@ -439,10 +448,14 @@ export default function TradingSimulationContent({
     
     // 캐시에 있으면 바로 표시
     if (detailsCache.has(cacheKey)) {
+      const cached = detailsCache.get(cacheKey)!
       setSelectedDetail({
         buyThreshold,
         sellThreshold,
-        details: detailsCache.get(cacheKey)!
+        details: cached.details,
+        analysisStartPrice: cached.analysisStartPrice,
+        analysisStartTimestamp: cached.analysisStartTimestamp,
+        exchange
       })
       setIsDetailModalOpen(true)
       return
@@ -461,19 +474,28 @@ export default function TradingSimulationContent({
 
     // 일회성 메시지 핸들러 설정
     const handleDetailMessage = (e: MessageEvent) => {
-      const { type, details, error } = e.data
+      const { type, details, analysisStartPrice, analysisStartTimestamp, error } = e.data
 
       if (type === 'DETAIL_COMPLETE') {
+        const response: DetailResponse = {
+          details,
+          analysisStartPrice,
+          analysisStartTimestamp
+        }
+        
         // 캐시에 저장
         const newCache = new Map(detailsCache)
-        newCache.set(cacheKey, details)
+        newCache.set(cacheKey, response)
         setDetailsCache(newCache)
 
         // 모달 표시
         setSelectedDetail({
           buyThreshold,
           sellThreshold,
-          details
+          details,
+          analysisStartPrice,
+          analysisStartTimestamp,
+          exchange
         })
         setIsDetailModalOpen(true)
         setIsDetailLoading(false)
@@ -1082,6 +1104,13 @@ export default function TradingSimulationContent({
                     매수 임계값: {selectedDetail.buyThreshold.toFixed(decimalPlaces)} | 
                     매도 임계값: {selectedDetail.sellThreshold.toFixed(decimalPlaces)}
                   </p>
+                  <p className="text-xs text-foreground/60 mt-1">
+                    거래소: {selectedDetail.exchange === 'binance' ? 'Binance' : selectedDetail.exchange === 'upbit' ? 'Upbit' : 'Bithumb'} | 
+                    분석 시작: {new Date(selectedDetail.analysisStartTimestamp).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} | 
+                    시작 가격: {selectedDetail.exchange === 'binance' 
+                      ? `$${selectedDetail.analysisStartPrice.toFixed(3)}`
+                      : `₩${Math.round(selectedDetail.analysisStartPrice).toLocaleString()}`}
+                  </p>
                 </div>
                 <button
                   onClick={() => setIsDetailModalOpen(false)}
@@ -1160,7 +1189,9 @@ export default function TradingSimulationContent({
                           )}
                         </td>
                         <td className="border border-border p-2 text-right">
-                          {detail.price.toLocaleString()}
+                          {selectedDetail.exchange === 'binance' 
+                            ? `$${detail.price.toFixed(3)}`
+                            : `₩${Math.round(detail.price).toLocaleString()}`}
                         </td>
                         <td className={`border border-border p-2 text-right font-medium ${
                           detail.cumulativeReturn > 0 ? 'text-red-400' : 

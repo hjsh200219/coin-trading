@@ -70,7 +70,7 @@ self.onmessage = function(e) {
       } = data
 
       // 상세 내역 생성
-      const details = runDetailedSimulation(
+      const result = runDetailedSimulation(
         mainCandles,
         fiveMinCandles,
         buyConditionCount,
@@ -85,7 +85,9 @@ self.onmessage = function(e) {
 
       self.postMessage({
         type: 'DETAIL_COMPLETE',
-        details
+        details: result.details,
+        analysisStartPrice: result.analysisStartPrice,
+        analysisStartTimestamp: result.analysisStartTimestamp
       })
     } catch (error) {
       self.postMessage({
@@ -691,5 +693,11 @@ function runDetailedSimulation(
     })
   }
 
-  return details
+  return {
+    details,
+    analysisStartPrice,
+    analysisStartTimestamp: analysisStartPrice !== fiveMin[0].close 
+      ? fiveMin.find(c => c.close === analysisStartPrice)?.timestamp || fiveMin[0].timestamp
+      : fiveMin[0].timestamp
+  }
 }
