@@ -1121,18 +1121,17 @@ export default function TradingSimulationContent({
 
             {/* 내용 */}
             <div className="flex-1 overflow-auto p-4">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-xs">
-                  <thead className="sticky top-0 bg-surface z-10">
-                    <tr>
-                      <th className="border border-border p-2 bg-surface-75 text-left whitespace-nowrap sticky top-0">시간</th>
-                      <th className="border border-border p-2 bg-surface-75 text-right sticky top-0">Ranking Value</th>
-                      <th className="border border-border p-2 bg-surface-75 text-center sticky top-0">판단</th>
-                      <th className="border border-border p-2 bg-surface-75 text-right sticky top-0">가격</th>
-                      <th className="border border-border p-2 bg-surface-75 text-right sticky top-0">누적 수익률</th>
-                      <th className="border border-border p-2 bg-surface-75 text-right sticky top-0">홀드 수익률</th>
-                    </tr>
-                  </thead>
+              <table className="w-full border-collapse text-xs">
+                <thead className="sticky top-0 bg-surface z-10">
+                  <tr>
+                    <th className="border border-border p-2 bg-surface-75 text-left whitespace-nowrap">시간</th>
+                    <th className="border border-border p-2 bg-surface-75 text-right">Ranking Value</th>
+                    <th className="border border-border p-2 bg-surface-75 text-center">판단</th>
+                    <th className="border border-border p-2 bg-surface-75 text-right">가격</th>
+                    <th className="border border-border p-2 bg-surface-75 text-right">누적 수익률</th>
+                    <th className="border border-border p-2 bg-surface-75 text-right">홀드 수익률</th>
+                  </tr>
+                </thead>
                   <tbody>
                     {selectedDetail.details
                       .filter(detail => showAllTrades || detail.decision !== 'hold')
@@ -1179,7 +1178,6 @@ export default function TradingSimulationContent({
                     ))}
                   </tbody>
                 </table>
-              </div>
             </div>
 
             {/* 푸터 */}
