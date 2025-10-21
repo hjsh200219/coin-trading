@@ -11,7 +11,7 @@ interface RankingAnalysisContentProps {
 }
 
 export default function RankingAnalysisContent({ symbol }: RankingAnalysisContentProps) {
-  const [exchange, setExchange] = useState<Exchange>('bithumb')
+  const [exchange, setExchange] = useState<Exchange>('binance')
   const [period, setPeriod] = useState<Period>('3M')
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1h')
   const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().split('T')[0])
