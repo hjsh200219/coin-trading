@@ -15,6 +15,8 @@ interface ChartControlsProps {
   defaultBaseDate?: Date
   defaultExchange?: Exchange
   showExchange?: boolean
+  availablePeriods?: Period[]
+  currentPeriod?: Period
 }
 
 export default function ChartControls({
@@ -27,6 +29,8 @@ export default function ChartControls({
   defaultBaseDate = new Date(),
   defaultExchange = 'bithumb',
   showExchange = false,
+  availablePeriods,
+  currentPeriod,
 }: ChartControlsProps) {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>(defaultTimeFrame)
   const [period, setPeriod] = useState<Period>(defaultPeriod)
@@ -95,13 +99,12 @@ export default function ChartControls({
 
           {/* 조회 기간 */}
           <PeriodSelector
-            value={period}
+            value={currentPeriod || period}
             onChange={handlePeriodChange}
             label="기간"
             showLabel
             size="sm"
-            exchange={exchange}
-            timeFrame={timeFrame}
+            disabledPeriods={availablePeriods ? ['1M', '3M', '6M', '1Y', '2Y', '3Y'].filter(p => !availablePeriods.includes(p as Period)) : []}
           />
         </div>
 
