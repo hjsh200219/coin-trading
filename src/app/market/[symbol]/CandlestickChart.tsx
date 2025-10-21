@@ -18,18 +18,21 @@ interface CandlestickChartProps {
   data: Candle[]
   isLoading?: boolean
   symbol: string
+  exchange?: 'bithumb' | 'upbit' | 'binance'
 }
 
 export default function CandlestickChart({
   data,
   isLoading,
   symbol,
+  exchange = 'bithumb',
 }: CandlestickChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const maSeriesRefs = useRef<ISeriesApi<'Line'>[]>([])
   const priceLineRefs = useRef<any[]>([])
+  const tooltipRef = useRef<HTMLDivElement>(null)
 
   // MA 표시 상태 (기본값: 모두 off)
   const [showMA5, setShowMA5] = useState(false)
@@ -110,6 +113,87 @@ export default function CandlestickChart({
 
     candlestickSeriesRef.current = candlestickSeries
 
+    // Crosshair 이벤트 핸들러 (툴팁 표시)
+    chart.subscribeCrosshairMove((param) => {
+      if (
+        !tooltipRef.current ||
+        !chartContainerRef.current ||
+        param.point === undefined ||
+        !param.time ||
+        param.point.x < 0 ||
+        param.point.x > chartContainerRef.current.clientWidth ||
+        param.point.y < 0 ||
+        param.point.y > chartContainerRef.current.clientHeight
+      ) {
+        if (tooltipRef.current) {
+          tooltipRef.current.style.display = 'none'
+        }
+        return
+      }
+
+      const data = param.seriesData.get(candlestickSeries)
+      if (!data || typeof data !== 'object' || !('close' in data)) {
+        if (tooltipRef.current) {
+          tooltipRef.current.style.display = 'none'
+        }
+        return
+      }
+
+      const candleData = data as { open: number; high: number; low: number; close: number }
+      const price = candleData.close
+      const dateStr = new Date((param.time as number) * 1000).toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+
+      // 가격 포맷 (거래소별)
+      const priceStr = exchange === 'binance' 
+        ? `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : `₩${price.toLocaleString('ko-KR')}`
+
+      tooltipRef.current.innerHTML = `
+        <div style="font-size: 12px; line-height: 1.5;">
+          <div style="color: #ededed; margin-bottom: 4px;">${dateStr}</div>
+          <div style="color: #3ecf8e; font-weight: 600; font-size: 14px;">${priceStr}</div>
+          <div style="font-size: 11px; color: #999; margin-top: 4px;">
+            <div>O: ${exchange === 'binance' ? '$' : '₩'}${candleData.open.toLocaleString()}</div>
+            <div>H: ${exchange === 'binance' ? '$' : '₩'}${candleData.high.toLocaleString()}</div>
+            <div>L: ${exchange === 'binance' ? '$' : '₩'}${candleData.low.toLocaleString()}</div>
+            <div>C: ${exchange === 'binance' ? '$' : '₩'}${candleData.close.toLocaleString()}</div>
+          </div>
+        </div>
+      `
+      tooltipRef.current.style.display = 'block'
+      
+      const tooltip = tooltipRef.current
+      const tooltipWidth = tooltip.offsetWidth
+      const tooltipHeight = tooltip.offsetHeight
+      const chartWidth = chartContainerRef.current.clientWidth
+      const chartHeight = chartContainerRef.current.clientHeight
+
+      let left = param.point.x + 15
+      let top = param.point.y - tooltipHeight / 2
+
+      // 오른쪽 경계 체크
+      if (left + tooltipWidth > chartWidth) {
+        left = param.point.x - tooltipWidth - 15
+      }
+
+      // 상단/하단 경계 체크
+      if (top < 0) {
+        top = 5
+      } else if (top + tooltipHeight > chartHeight) {
+        top = chartHeight - tooltipHeight - 5
+      }
+
+      tooltip.style.left = `${left}px`
+      tooltip.style.top = `${top}px`
+    })
+
     // 반응형 처리
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
@@ -137,7 +221,7 @@ export default function CandlestickChart({
       // 차트 제거
       chart.remove()
     }
-  }, [isLoading])
+  }, [isLoading, exchange])
 
   // 데이터 업데이트
   useEffect(() => {
@@ -338,7 +422,21 @@ export default function CandlestickChart({
             <p className="text-sm text-foreground/60">캔들: {data.length}개</p>
           </div>
         </div>
-        <div ref={chartContainerRef} className="w-full" />
+        <div className="relative">
+          <div ref={chartContainerRef} className="w-full" />
+          {/* 툴팁 */}
+          <div
+            ref={tooltipRef}
+            className="absolute pointer-events-none z-50 hidden"
+            style={{
+              background: 'rgba(24, 24, 24, 0.95)',
+              border: '1px solid #3ecf8e',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            }}
+          />
+        </div>
       </div>
     </Card>
   )

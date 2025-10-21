@@ -109,6 +109,7 @@ export default function CoinDetailContent({ coin }: CoinDetailContentProps) {
         data={candles}
         isLoading={isLoading}
         symbol={coin.symbol}
+        exchange={exchange}
       />
 
       {/* 기술적 지표 */}
