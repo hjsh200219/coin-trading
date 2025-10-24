@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import RankingAnalysisContent from '../RankingAnalysisContent'
 import TradingSimulationContent from '../TradingSimulationContent'
 
@@ -18,6 +19,29 @@ export default function SimulationTabLayout({ symbol, initialTab }: SimulationTa
 
   return (
     <div className="space-y-4">
+      {/* 뒤로가기 버튼 */}
+      <div>
+        <Link
+          href="/simulation"
+          className="inline-flex items-center gap-2 text-sm text-foreground/60 hover:text-brand transition"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          시뮬레이션 목록으로 돌아가기
+        </Link>
+      </div>
+
       {/* 코인 심볼 타이틀 */}
       <div className="flex items-center gap-3">
         <h1 className="text-lg md:text-xl font-bold text-foreground">
