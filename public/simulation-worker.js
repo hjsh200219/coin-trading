@@ -357,14 +357,14 @@ function runTradingSimulation(
     const indicatorValue = indicatorValues[i]
     const currentPrice = fiveMin[i].close
 
-    // 매수 조건 체크
+    // 매수 비교 범위 체크
     if (position === 0 && i >= config.buyConditionCount) {
       // 현재 값을 제외한 직전 N개 (엑셀 로직)
       const recentValues = indicatorValues.slice(i - config.buyConditionCount, i)
       const { min } = calculateMinMax(recentValues)
-      const buyCondition = min + (Math.abs(min) * config.buyThreshold)
+      const buyCondition = indicatorValue - min
 
-      if (indicatorValue >= buyCondition) {
+      if (buyCondition > config.buyThreshold) {
         holdings = balance / currentPrice
         buyPrice = currentPrice
         balance = 0
@@ -379,14 +379,14 @@ function runTradingSimulation(
       }
     }
 
-    // 매도 조건 체크
+    // 매도 비교 범위 체크
     if (position === 1 && i >= config.sellConditionCount) {
       // 현재 값을 제외한 직전 N개 (엑셀 로직)
       const recentValues = indicatorValues.slice(i - config.sellConditionCount, i)
       const { max } = calculateMinMax(recentValues)
-      const sellCondition = max - (Math.abs(max) * config.sellThreshold)
+      const sellCondition = indicatorValue - max
 
-      if (indicatorValue <= sellCondition) {
+      if (sellCondition < config.sellThreshold) {
         balance = holdings * currentPrice
         holdings = 0
         position = 0
@@ -616,13 +616,18 @@ function runDetailedSimulation(
   }
   
   const firstPrice = fiveMin[0].close
-  const initialPrice = analysisStartPrice  // 홀드 수익률 계산용
+  
+  // 홀드 수익률 계산용 기준 가격
+  // - 초기 포지션이 코인이면: 시뮬레이션 시작 시점 가격
+  // - 초기 포지션이 현금이면: 첫 매수 시점 가격
+  let holdBasePrice = null
   
   // 코인 보유로 시작하는 경우
   if (initialPosition === 'coin') {
     holdings = balance / firstPrice
     balance = 0
     buyPrice = firstPrice
+    holdBasePrice = analysisStartPrice  // 시뮬레이션 시작 시점 가격 기준
   }
 
   // 지표 값 저장 배열
@@ -651,26 +656,31 @@ function runDetailedSimulation(
       const recentValues = indicatorValues.slice(i - config.buyConditionCount, i)
       const minValue = Math.min(...recentValues)
       
-      // 매수 조건: min + (|min| * threshold)
-      const buyCondition = minValue + (Math.abs(minValue) * config.buyThreshold)
+      // 매수 비교 범위: currentValue - min > buyThreshold
+      const buyCondition = rankingValue - minValue
       
-      if (rankingValue >= buyCondition) {
+      if (buyCondition > config.buyThreshold) {
         // 매수
         holdings = balance / currentPrice
         balance = 0
         buyPrice = currentPrice
         position = 1
         decision = 'buy'
+        
+        // 초기 포지션이 현금인 경우, 첫 매수 시점 가격을 홀드 기준 가격으로 설정
+        if (holdBasePrice === null) {
+          holdBasePrice = currentPrice
+        }
       }
     } else if (i >= config.sellConditionCount && position === 1) {
       // 현재 값을 제외한 직전 N개
       const recentValues = indicatorValues.slice(i - config.sellConditionCount, i)
       const maxValue = Math.max(...recentValues)
       
-      // 매도 조건: max - (|max| * threshold)
-      const sellCondition = maxValue - (Math.abs(maxValue) * config.sellThreshold)
+      // 매도 비교 범위: currentValue - max < sellThreshold
+      const sellCondition = rankingValue - maxValue
       
-      if (rankingValue <= sellCondition) {
+      if (sellCondition < config.sellThreshold) {
         // 매도
         balance = holdings * currentPrice
         holdings = 0
@@ -688,8 +698,13 @@ function runDetailedSimulation(
       }
       const cumulativeReturn = ((currentBalance - 1000000) / 1000000) * 100
 
-      // 홀드 수익률 계산 (분석 시작 가격 기준)
-      const holdReturn = ((currentPrice - initialPrice) / initialPrice) * 100
+      // 홀드 수익률 계산
+      // - holdBasePrice가 설정되지 않았으면 (아직 매수 안함) 0%
+      // - holdBasePrice가 설정되었으면 해당 가격 기준으로 계산
+      let holdReturn = 0
+      if (holdBasePrice !== null) {
+        holdReturn = ((currentPrice - holdBasePrice) / holdBasePrice) * 100
+      }
 
       details.push({
         timestamp: currentCandle.timestamp,

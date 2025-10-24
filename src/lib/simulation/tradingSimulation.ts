@@ -24,6 +24,7 @@ import {
   executeSell,
   calculateTotalReturn,
   liquidatePosition,
+  createInitialPosition,
   type TradingPosition,
 } from './tradingRules'
 
@@ -36,10 +37,11 @@ export interface CandleData {
 }
 
 export interface SimulationConfig {
-  buyConditionCount: number // 매수 조건 개수 (예: 3)
-  buyThreshold: number // 매수 임계값 (예: 0.7)
-  sellConditionCount: number // 매도 조건 개수 (예: 3)
-  sellThreshold: number // 매도 임계값 (예: 0.46)
+  buyConditionCount: number // 매수 비교 범위 개수 (예: 3)
+  buyThreshold: number // 매수 임계값 (0.0 ~ 2.0)
+  sellConditionCount: number // 매도 비교 범위 개수 (예: 3)
+  sellThreshold: number // 매도 임계값 (-2.0 ~ 0.0, 음수 범위)
+  initialPosition?: 'cash' | 'coin' // 초기 포지션 (기본값: 'cash')
 }
 
 export interface TradeRecord {
@@ -147,14 +149,6 @@ export function runTradingSimulation(
 ): SimulationResult {
   const trades: TradeRecord[] = []
   
-  // 초기 포지션 (tradingRules의 상수 사용)
-  let tradingPosition: TradingPosition = {
-    position: POSITION_NONE,
-    balance: INITIAL_CAPITAL,
-    holdings: 0,
-    buyPrice: 0
-  }
-
   // 5분봉 데이터 생성
   const fiveMin = generate5MinCandles(twoHourCandles, fiveMinCandles)
   
@@ -164,9 +158,16 @@ export function runTradingSimulation(
       totalReturn: 0,
       tradeCount: 0,
       trades: [],
-      finalBalance: tradingPosition.balance
+      finalBalance: INITIAL_CAPITAL
     }
   }
+  
+  // 초기 포지션 설정 (createInitialPosition 사용)
+  const initialPrice = fiveMin[0].close
+  let tradingPosition: TradingPosition = createInitialPosition(
+    config.initialPosition || 'cash',
+    initialPrice
+  )
   
   // 지표 값 (캐시가 있으면 사용, 없으면 계산)
   const indicatorValues: number[] = cachedIndicatorValues || []
@@ -189,7 +190,7 @@ export function runTradingSimulation(
     const indicatorValue = indicatorValues[i]
     const currentPrice = fiveMin[i].close
     
-    // 매수 조건 체크 (tradingRules.checkBuyCondition 사용)
+    // 매수 비교 범위 체크 (tradingRules.checkBuyCondition 사용)
     if (tradingPosition.position === POSITION_NONE && i >= config.buyConditionCount) {
       // 현재 값을 제외한 직전 N개 (엑셀 로직)
       const recentValues = indicatorValues.slice(i - config.buyConditionCount, i)
@@ -209,7 +210,7 @@ export function runTradingSimulation(
       }
     }
     
-    // 매도 조건 체크 (tradingRules.checkSellCondition 사용)
+    // 매도 비교 범위 체크 (tradingRules.checkSellCondition 사용)
     if (tradingPosition.position === POSITION_LONG && i >= config.sellConditionCount) {
       // 현재 값을 제외한 직전 N개 (엑셀 로직)
       const recentValues = indicatorValues.slice(i - config.sellConditionCount, i)

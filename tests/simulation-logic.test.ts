@@ -22,8 +22,8 @@ interface CandleData {
  * 4. 첫 5분은 그때까지의 시종고저 값으로 보조지표 계산
  * 5. 다음 5분은 직전 5분을 포함한 10분 동안의 값으로 계산
  * 6. 매 5분마다 2시간이 끝나기 전까지는 그 시각까지의 시종고저값으로 보조지표 생성
- * 7. 매수 조건: 직전 N개의 min값과 비교하여 임계값 이상이면 매수
- * 8. 매도 조건: 직전 N개의 max값과 비교하여 임계값 이하면 매도
+ * 7. 매수 비교 범위: 직전 N개의 min값과 비교하여 임계값 이상이면 매수
+ * 8. 매도 비교 범위: 직전 N개의 max값과 비교하여 임계값 이하면 매도
  */
 
 describe('Trading Simulation Logic Verification', () => {
@@ -105,53 +105,52 @@ describe('Trading Simulation Logic Verification', () => {
     console.log('5분 간격 지표 개수:', indicators.length)
   })
 
-  it('2. 매수 조건 검증: 직전 N개의 min값과 비교', () => {
+  it('2. 매수 비교 범위 검증: 직전 N개의 min값과 비교', () => {
     const buyConditionCount = 3 // 직전 3개
     const buyThreshold = 0.7 // 0.7 이상
     
     // 테스트 지표 값 (랭킹 값)
-    const rankingValues = [0.5, 0.6, 0.65, 1.0] // 마지막 값: 1.0으로 변경
+    const rankingValues = [-0.5, -0.4, -0.3, 0.3] // 마지막 값: 0.3
     
     // 직전 3개의 min값
-    const lastN = rankingValues.slice(-buyConditionCount - 1, -1) // [0.5, 0.6, 0.65]
-    const minValue = Math.min(...lastN) // 0.5
+    const lastN = rankingValues.slice(-buyConditionCount - 1, -1) // [-0.5, -0.4, -0.3]
+    const minValue = Math.min(...lastN) // -0.5
     
-    const currentValue = rankingValues[rankingValues.length - 1] // 1.0
+    const currentValue = rankingValues[rankingValues.length - 1] // 0.3
     
-    // 매수 조건: (currentValue - minValue) / |minValue| >= buyThreshold
-    const shouldBuy = (currentValue - minValue) / Math.abs(minValue) >= buyThreshold
+    // 매수 비교 범위: currentValue - minValue > buyThreshold
+    const shouldBuy = currentValue - minValue > buyThreshold
     
     console.log('현재 값:', currentValue)
     console.log('직전 3개의 min:', minValue)
-    console.log('변화율:', (currentValue - minValue) / Math.abs(minValue))
-    console.log('매수 조건 충족:', shouldBuy)
+    console.log('차이:', currentValue - minValue)
+    console.log('매수 비교 범위 충족:', shouldBuy)
     
-    expect(shouldBuy).toBe(true) // (1.0 - 0.5) / 0.5 = 1.0 >= 0.7
+    expect(shouldBuy).toBe(true) // 0.3 - (-0.5) = 0.8 > 0.7
   })
 
-  it('3. 매도 조건 검증: 직전 N개의 max값과 비교', () => {
+  it('3. 매도 비교 범위 검증: 직전 N개의 max값과 비교', () => {
     const sellConditionCount = 3
-    const sellThreshold = 0.46
+    const sellThreshold = -0.5 // 음수 범위 (-2.0 ~ 0.0)
     
     // 테스트 지표 값
-    const rankingValues = [0.8, 0.75, 0.7, 0.4] // 마지막 값: 0.4
+    const rankingValues = [0.8, 0.75, 0.7, 0.2] // 마지막 값: 0.2
     
     // 직전 3개의 max값
     const lastN = rankingValues.slice(-sellConditionCount - 1, -1) // [0.8, 0.75, 0.7]
     const maxValue = Math.max(...lastN) // 0.8
     
-    const currentValue = rankingValues[rankingValues.length - 1] // 0.4
+    const currentValue = rankingValues[rankingValues.length - 1] // 0.2
     
-    // 매도 조건: currentValue <= maxValue * (1 - sellThreshold)
-    // 실제로는 (maxValue - currentValue) / maxValue >= sellThreshold
-    const shouldSell = (maxValue - currentValue) / Math.abs(maxValue) >= sellThreshold
+    // 매도 비교 범위: currentValue - maxValue < sellThreshold
+    const shouldSell = currentValue - maxValue < sellThreshold
     
     console.log('현재 값:', currentValue)
     console.log('직전 3개의 max:', maxValue)
-    console.log('변화율:', (maxValue - currentValue) / Math.abs(maxValue))
-    console.log('매도 조건 충족:', shouldSell)
+    console.log('차이:', currentValue - maxValue)
+    console.log('매도 비교 범위 충족:', shouldSell)
     
-    expect(shouldSell).toBe(true) // (0.8 - 0.4) / 0.8 = 0.5 >= 0.46
+    expect(shouldSell).toBe(true) // 0.2 - 0.8 = -0.6 < -0.5
   })
 
   it('4. 시작 인덱스 자동 결정: 직전 2개의 rankingValue', () => {
@@ -210,7 +209,7 @@ describe('Trading Simulation Logic Verification', () => {
     const buyConditionCount = 3
     const sellConditionCount = 3
     const buyThreshold = 0.7
-    const sellThreshold = 0.46
+    const sellThreshold = -0.5 // 음수 범위
     
     let position = 0
     const trades: { time: number; action: string; price: number }[] = []
@@ -227,15 +226,15 @@ describe('Trading Simulation Logic Verification', () => {
       const indicator = calculateSimpleIndicator(candlesForIndicator)
       allIndicators.push(indicator)
       
-      // 매수/매도 조건 확인 (최소 buyConditionCount + 1개 이상의 지표 필요)
+      // 매수/매도 비교 범위 확인 (최소 buyConditionCount + 1개 이상의 지표 필요)
       if (allIndicators.length > buyConditionCount) {
         const lastN = allIndicators.slice(-buyConditionCount - 1, -1)
         const currentValue = allIndicators[allIndicators.length - 1]
         
-        // 매수 조건
+        // 매수 비교 범위
         if (position === 0) {
           const minValue = Math.min(...lastN)
-          if ((currentValue - minValue) / Math.abs(minValue) >= buyThreshold) {
+          if (currentValue - minValue > buyThreshold) {
             position = -1
             trades.push({
               time: fiveMinCandles[i].timestamp,
@@ -244,10 +243,10 @@ describe('Trading Simulation Logic Verification', () => {
             })
           }
         }
-        // 매도 조건
+        // 매도 비교 범위
         else if (position === -1) {
           const maxValue = Math.max(...lastN)
-          if ((maxValue - currentValue) / Math.abs(maxValue) >= sellThreshold) {
+          if (currentValue - maxValue < sellThreshold) {
             position = 0
             trades.push({
               time: fiveMinCandles[i].timestamp,

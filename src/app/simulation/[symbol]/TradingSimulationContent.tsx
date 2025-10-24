@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { AnalysisSettings } from '@/components/common'
@@ -33,26 +33,39 @@ interface DetailResponse {
 export default function TradingSimulationContent({
   symbol
 }: TradingSimulationContentProps) {
+  // localStorage 키 생성 및 값 불러오기 헬퍼
+  const getStorageKey = useCallback((key: string) => `simulation_${symbol}_${key}`, [symbol])
+  
+  const getStoredValue = <T,>(key: string, defaultValue: T): T => {
+    if (typeof window === 'undefined') return defaultValue
+    try {
+      const stored = localStorage.getItem(`simulation_${symbol}_${key}`)
+      return stored ? JSON.parse(stored) : defaultValue
+    } catch {
+      return defaultValue
+    }
+  }
+
   // 분석 설정 (시뮬레이션은 빗썸 제외, 기본값: Binance)
-  const [exchange, setExchange] = useState<Exchange>('binance')
-  const [period, setPeriod] = useState<Period>('3M')
-  const [timeFrame, setTimeFrame] = useState<TimeFrame>('2h')
+  const [exchange, setExchange] = useState<Exchange>(() => getStoredValue('exchange', 'binance'))
+  const [period, setPeriod] = useState<Period>(() => getStoredValue('period', '3M'))
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>(() => getStoredValue('timeFrame', '2h'))
   const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().split('T')[0])
-  const [indicators, setIndicators] = useState<IndicatorConfig>({
+  const [indicators, setIndicators] = useState<IndicatorConfig>(() => getStoredValue('indicators', {
     macd: true,
     rsi: true,
     ao: true,
     DP: true,
     rti: true,
-  })
+  }))
   
   // Trading Simulation 설정
-  const [buyConditionCount, setBuyConditionCount] = useState(3)
-  const [sellConditionCount, setSellConditionCount] = useState(3)
-  const [buyThresholdMin, setBuyThresholdMin] = useState(0.0)
-  const [buyThresholdMax, setBuyThresholdMax] = useState(1.0)
-  const [sellThresholdMin, setSellThresholdMin] = useState(0.0)
-  const [sellThresholdMax, setSellThresholdMax] = useState(1.0)
+  const [buyConditionCount, setBuyConditionCount] = useState(() => getStoredValue('buyConditionCount', 3))
+  const [sellConditionCount, setSellConditionCount] = useState(() => getStoredValue('sellConditionCount', 3))
+  const [buyThresholdMin, setBuyThresholdMin] = useState(() => getStoredValue('buyThresholdMin', 0.0))
+  const [buyThresholdMax, setBuyThresholdMax] = useState(() => getStoredValue('buyThresholdMax', 2.0))
+  const [sellThresholdMin, setSellThresholdMin] = useState(() => getStoredValue('sellThresholdMin', -2.0))
+  const [sellThresholdMax, setSellThresholdMax] = useState(() => getStoredValue('sellThresholdMax', 0.0))
   const [isSimulating, setIsSimulating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [results, setResults] = useState<GridSimulationResult[][] | null>(null)
@@ -62,8 +75,8 @@ export default function TradingSimulationContent({
   const [maxReturn, setMaxReturn] = useState(0)
   const [using5Min, setUsing5Min] = useState<boolean | null>(null)
   const [progressMessage, setProgressMessage] = useState<string>('')
-  const [decimalPlaces, setDecimalPlaces] = useState<2 | 3>(2) // 임계값 소수점 자릿수 (기본값: 2)
-  const [initialPosition, setInitialPosition] = useState<'cash' | 'coin'>('cash') // 초기 포지션 (기본값: 현금)
+  const [decimalPlaces, setDecimalPlaces] = useState<2 | 3>(() => getStoredValue('decimalPlaces', 2))
+  const [initialPosition, setInitialPosition] = useState<'cash' | 'coin'>(() => getStoredValue('initialPosition', 'cash'))
   
   // 상세 내역 모달
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
@@ -88,6 +101,67 @@ export default function TradingSimulationContent({
   // Web Worker 참조
   const workerRef = useRef<Worker | null>(null)
   const cancelRef = useRef(false)
+
+  // localStorage에 설정 저장
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('exchange'), JSON.stringify(exchange))
+  }, [exchange, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('period'), JSON.stringify(period))
+  }, [period, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('timeFrame'), JSON.stringify(timeFrame))
+  }, [timeFrame, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('indicators'), JSON.stringify(indicators))
+  }, [indicators, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('buyConditionCount'), JSON.stringify(buyConditionCount))
+  }, [buyConditionCount, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('sellConditionCount'), JSON.stringify(sellConditionCount))
+  }, [sellConditionCount, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('buyThresholdMin'), JSON.stringify(buyThresholdMin))
+  }, [buyThresholdMin, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('buyThresholdMax'), JSON.stringify(buyThresholdMax))
+  }, [buyThresholdMax, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('sellThresholdMin'), JSON.stringify(sellThresholdMin))
+  }, [sellThresholdMin, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('sellThresholdMax'), JSON.stringify(sellThresholdMax))
+  }, [sellThresholdMax, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('decimalPlaces'), JSON.stringify(decimalPlaces))
+  }, [decimalPlaces, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('initialPosition'), JSON.stringify(initialPosition))
+  }, [initialPosition, getStorageKey])
 
   // ESC 키로 모달 닫기 및 필터 초기화
   useEffect(() => {
@@ -222,8 +296,8 @@ export default function TradingSimulationContent({
       return
     }
 
-    if (buyThresholdMin < 0.0 || buyThresholdMax > 1.0) {
-      alert('매수 임계값 범위는 0.0 ~ 1.0 사이여야 합니다.')
+    if (buyThresholdMin < 0.0 || buyThresholdMax > 2.0) {
+      alert('매수 임계값 범위는 0.0 ~ 2.0 사이여야 합니다.')
       return
     }
 
@@ -239,8 +313,8 @@ export default function TradingSimulationContent({
       return
     }
 
-    if (sellThresholdMin < 0.0 || sellThresholdMax > 1.0) {
-      alert('매도 임계값 범위는 0.0 ~ 1.0 사이여야 합니다.')
+    if (sellThresholdMin < -2.0 || sellThresholdMax > 0.0) {
+      alert('매도 임계값 범위는 -2.0 ~ 0.0 사이여야 합니다.')
       return
     }
 
@@ -589,7 +663,7 @@ export default function TradingSimulationContent({
                   value={buyThresholdMin}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMin(Number(e.target.value))}
                   min={0.0}
-                  max={1.0}
+                  max={2.0}
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
@@ -599,7 +673,7 @@ export default function TradingSimulationContent({
                   value={buyThresholdMax}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMax(Number(e.target.value))}
                   min={0.0}
-                  max={1.0}
+                  max={2.0}
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
@@ -625,8 +699,8 @@ export default function TradingSimulationContent({
                   type="number"
                   value={sellThresholdMin}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMin(Number(e.target.value))}
-                  min={0.0}
-                  max={1.0}
+                  min={-2.0}
+                  max={0.0}
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
@@ -635,8 +709,8 @@ export default function TradingSimulationContent({
                   type="number"
                   value={sellThresholdMax}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMax(Number(e.target.value))}
-                  min={0.0}
-                  max={1.0}
+                  min={-2.0}
+                  max={0.0}
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
@@ -729,7 +803,7 @@ export default function TradingSimulationContent({
                     value={buyThresholdMin}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMin(Number(e.target.value))}
                     min={0.0}
-                    max={1.0}
+                    max={2.0}
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
@@ -739,7 +813,7 @@ export default function TradingSimulationContent({
                     value={buyThresholdMax}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBuyThresholdMax(Number(e.target.value))}
                     min={0.0}
-                    max={1.0}
+                    max={2.0}
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
@@ -771,8 +845,8 @@ export default function TradingSimulationContent({
                     type="number"
                     value={sellThresholdMin}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMin(Number(e.target.value))}
-                    min={0.0}
-                    max={1.0}
+                    min={-2.0}
+                    max={0.0}
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
@@ -781,8 +855,8 @@ export default function TradingSimulationContent({
                     type="number"
                     value={sellThresholdMax}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSellThresholdMax(Number(e.target.value))}
-                    min={0.0}
-                    max={1.0}
+                    min={-2.0}
+                    max={0.0}
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />

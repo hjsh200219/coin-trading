@@ -44,20 +44,19 @@ export function calculateMinMax(values: number[]): { min: number; max: number } 
   }
 }
 
-// ===== 매수 조건 판단 =====
+// ===== 매수 비교 범위 판단 =====
 
 /**
- * 매수 조건 체크
+ * 매수 비교 범위 체크
  * 
  * 로직:
  * 1. 직전 N개의 지표 값에서 최소값(min) 구하기
- * 2. 매수 기준값 = min + (|min| * buyThreshold)
- * 3. 현재 지표 값 >= 매수 기준값이면 매수
+ * 2. 현재 지표 값 - min > buyThreshold 이면 매수
  * 
  * @param recentValues - 직전 N개의 지표 값 (현재 값 제외)
  * @param currentValue - 현재 지표 값
- * @param buyThreshold - 매수 임계값 (0.0 ~ 1.0)
- * @returns 매수 조건 판단 결과
+ * @param buyThreshold - 매수 임계값 (0.0 ~ 2.0)
+ * @returns 매수 비교 범위 판단 결과
  */
 export function checkBuyCondition(
   recentValues: number[],
@@ -66,31 +65,30 @@ export function checkBuyCondition(
 ): BuyCondition {
   const { min } = calculateMinMax(recentValues)
   
-  // 매수 조건: min + (|min| * threshold)
-  const buyCondition = min + (Math.abs(min) * buyThreshold)
+  // 매수 비교 범위: currentValue - min > buyThreshold
+  const buyCondition = currentValue - min
   
   return {
-    shouldBuy: currentValue >= buyCondition,
+    shouldBuy: buyCondition > buyThreshold,
     minValue: min,
     buyCondition,
     currentValue
   }
 }
 
-// ===== 매도 조건 판단 =====
+// ===== 매도 비교 범위 판단 =====
 
 /**
- * 매도 조건 체크
+ * 매도 비교 범위 체크
  * 
  * 로직:
  * 1. 직전 N개의 지표 값에서 최대값(max) 구하기
- * 2. 매도 기준값 = max - (|max| * sellThreshold)
- * 3. 현재 지표 값 <= 매도 기준값이면 매도
+ * 2. 현재 지표 값 - max < sellThreshold 이면 매도
  * 
  * @param recentValues - 직전 N개의 지표 값 (현재 값 제외)
  * @param currentValue - 현재 지표 값
- * @param sellThreshold - 매도 임계값 (0.0 ~ 1.0)
- * @returns 매도 조건 판단 결과
+ * @param sellThreshold - 매도 임계값 (-2.0 ~ 0.0, 음수 범위)
+ * @returns 매도 비교 범위 판단 결과
  */
 export function checkSellCondition(
   recentValues: number[],
@@ -99,11 +97,11 @@ export function checkSellCondition(
 ): SellCondition {
   const { max } = calculateMinMax(recentValues)
   
-  // 매도 조건: max - (|max| * threshold)
-  const sellCondition = max - (Math.abs(max) * sellThreshold)
+  // 매도 비교 범위: currentValue - max < sellThreshold
+  const sellCondition = currentValue - max
   
   return {
-    shouldSell: currentValue <= sellCondition,
+    shouldSell: sellCondition < sellThreshold,
     maxValue: max,
     sellCondition,
     currentValue

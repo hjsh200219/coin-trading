@@ -31,14 +31,14 @@ export const THRESHOLD_STEP = 0.01      // 임계값 단위
 
 ### 2. **tradingRules.ts** - 매수/매도 로직 관리
 ```typescript
-// ✅ 매수 조건 판단
+// ✅ 매수 비교 범위 판단
 export function checkBuyCondition(
   recentValues: number[],
   currentValue: number,
   buyThreshold: number
 ): BuyCondition
 
-// ✅ 매도 조건 판단
+// ✅ 매도 비교 범위 판단
 export function checkSellCondition(
   recentValues: number[],
   currentValue: number,
@@ -78,7 +78,7 @@ import { checkBuyCondition, checkSellCondition, ... } from './tradingRules'
 // ⚠️ 주의: Worker는 ES Module import를 사용할 수 없음
 // tradingRules.ts와 constants.ts의 로직을 수동으로 복사
 
-// 매수 조건 판단 (tradingRules.checkBuyCondition와 동일)
+// 매수 비교 범위 판단 (tradingRules.checkBuyCondition와 동일)
 function checkBuyCondition(recentValues, currentValue, buyThreshold) {
   // ... tradingRules.ts와 동일한 로직
 }
@@ -103,7 +103,7 @@ function checkBuyCondition(recentValues, currentValue, buyThreshold) {
    const INITIAL_CAPITAL = 2000000  // 200만원으로 변경
    ```
 
-### 매수/매도 로직 변경 (예: 매수 조건 수식 변경)
+### 매수/매도 로직 변경 (예: 매수 비교 범위 수식 변경)
 1. `tradingRules.ts`의 `checkBuyCondition` 함수 수정
    ```typescript
    export function checkBuyCondition(...) {
@@ -145,39 +145,41 @@ function checkBuyCondition(recentValues, currentValue, buyThreshold) {
 
 ## 🧪 매수/매도 로직 상세
 
-### 매수 조건 (checkBuyCondition)
+### 매수 비교 범위 (checkBuyCondition)
 ```typescript
 // 1. 직전 N개의 최소값 구하기
 const min = Math.min(...recentValues)
 
-// 2. 매수 기준값 계산
-const buyCondition = min + (|min| * buyThreshold)
+// 2. 현재 값과 최소값의 차이 계산
+const buyCondition = currentValue - min
 
-// 3. 현재 값이 기준값 이상이면 매수
-shouldBuy = currentValue >= buyCondition
+// 3. 차이가 임계값보다 크면 매수
+shouldBuy = buyCondition > buyThreshold
 ```
 
 **예시:**
-- `min = -0.5`, `buyThreshold = 0.7`
-- `buyCondition = -0.5 + (0.5 * 0.7) = -0.5 + 0.35 = -0.15`
-- `currentValue = -0.1` → 매수 (`-0.1 >= -0.15`)
+- `min = -0.5`, `buyThreshold = 0.7`, `currentValue = -0.1`
+- `buyCondition = -0.1 - (-0.5) = 0.4`
+- `0.4 > 0.7` → **매수 안함** ❌
+- `currentValue = 0.3`이면 `0.3 - (-0.5) = 0.8 > 0.7` → **매수함** ✅
 
-### 매도 조건 (checkSellCondition)
+### 매도 비교 범위 (checkSellCondition)
 ```typescript
 // 1. 직전 N개의 최대값 구하기
 const max = Math.max(...recentValues)
 
-// 2. 매도 기준값 계산
-const sellCondition = max - (|max| * sellThreshold)
+// 2. 현재 값과 최대값의 차이 계산
+const sellCondition = currentValue - max
 
-// 3. 현재 값이 기준값 이하이면 매도
-shouldSell = currentValue <= sellCondition
+// 3. 차이가 임계값보다 작으면 매도 (임계값은 음수)
+shouldSell = sellCondition < sellThreshold
 ```
 
 **예시:**
-- `max = 0.8`, `sellThreshold = 0.5`
-- `sellCondition = 0.8 - (0.8 * 0.5) = 0.8 - 0.4 = 0.4`
-- `currentValue = 0.3` → 매도 (`0.3 <= 0.4`)
+- `max = 0.8`, `sellThreshold = -0.5` (음수), `currentValue = 0.3`
+- `sellCondition = 0.3 - 0.8 = -0.5`
+- `-0.5 < -0.5` → **매도 안함** ❌ (같으므로)
+- `currentValue = 0.2`이면 `0.2 - 0.8 = -0.6 < -0.5` → **매도함** ✅
 
 ---
 

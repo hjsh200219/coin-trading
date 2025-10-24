@@ -16,7 +16,7 @@ console.log('H1:', sheet['H1']);
 console.log('I1:', sheet['I1']);
 console.log('J1:', sheet['J1']);
 
-console.log('\n===== Row 2 (매수/매도 조건 개수) =====');
+console.log('\n===== Row 2 (매수/매도 비교 범위 개수) =====');
 console.log('H2:', sheet['H2']);
 console.log('I2:', sheet['I2']);
 

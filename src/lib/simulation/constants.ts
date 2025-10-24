@@ -17,9 +17,9 @@ export const UI_UPDATE_DELAY = 10 // UI 업데이트 딜레이 (ms)
 // ===== 임계값 설정 =====
 export const THRESHOLD_STEP = 0.01 // 임계값 단위 (0.01 = 1%)
 export const DEFAULT_BUY_THRESHOLD_MIN = 0.0
-export const DEFAULT_BUY_THRESHOLD_MAX = 1.0
-export const DEFAULT_SELL_THRESHOLD_MIN = 0.0
-export const DEFAULT_SELL_THRESHOLD_MAX = 1.0
+export const DEFAULT_BUY_THRESHOLD_MAX = 2.0
+export const DEFAULT_SELL_THRESHOLD_MIN = -2.0
+export const DEFAULT_SELL_THRESHOLD_MAX = 0.0
 
 // ===== 거래 포지션 =====
 export const POSITION_NONE = 0 // 포지션 없음

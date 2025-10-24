@@ -58,7 +58,7 @@ test.describe('Trading Simulation Verification', () => {
     await timeFrame2hButton.click()
     
     // 6. 시뮬레이션 설정
-    // 매수/매도 조건 개수
+    // 매수/매도 비교 범위 개수
     const buyCountInput = page.locator('input[type="number"]').nth(0)
     const sellCountInput = page.locator('input[type="number"]').nth(1)
     await buyCountInput.fill('3')
@@ -138,15 +138,15 @@ test.describe('Trading Simulation Verification', () => {
     expect(numValue).toBeDefined()
   })
 
-  test('매수/매도 조건 검증', async ({ page }) => {
+  test('매수/매도 비교 범위 검증', async ({ page }) => {
     await page.goto('http://localhost:3000/simulation/BTC/simulation')
     await page.waitForLoadState('networkidle')
     
-    // 매수 조건 개수 설정
+    // 매수 비교 범위 개수 설정
     const buyCountInput = page.locator('input[type="number"]').nth(0)
     await buyCountInput.fill('3')
     
-    // 매도 조건 개수 설정
+    // 매도 비교 범위 개수 설정
     const sellCountInput = page.locator('input[type="number"]').nth(1)
     await sellCountInput.fill('3')
     
@@ -157,8 +157,8 @@ test.describe('Trading Simulation Verification', () => {
     expect(buyCount).toBe('3')
     expect(sellCount).toBe('3')
     
-    console.log('매수 조건 개수:', buyCount)
-    console.log('매도 조건 개수:', sellCount)
+    console.log('매수 비교 범위 개수:', buyCount)
+    console.log('매도 비교 범위 개수:', sellCount)
   })
 
   test('기준일 변경 시 결과 변경 검증', async ({ page }) => {

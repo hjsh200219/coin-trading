@@ -104,7 +104,7 @@ export default function ChartControls({
             label="기간"
             showLabel
             size="sm"
-            disabledPeriods={availablePeriods ? ['1M', '3M', '6M', '1Y', '2Y', '3Y'].filter(p => !availablePeriods.includes(p as Period)) : []}
+            disabledPeriods={availablePeriods ? (['1M', '3M', '6M', '1Y', '2Y', '3Y'] as Period[]).filter(p => !availablePeriods.includes(p as Period)) : []}
           />
         </div>
 
