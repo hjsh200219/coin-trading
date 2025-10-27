@@ -5,9 +5,13 @@
 ```
 src/lib/simulation/
 ├── README.md              # 이 파일 (문서)
+├── CHANGELOG.md          # 변경 이력
 ├── constants.ts          # 모든 상수 중앙 관리 ⭐
 ├── tradingRules.ts       # 매수/매도 로직 중앙 관리 ⭐
 └── tradingSimulation.ts  # 시뮬레이션 실행 (TypeScript)
+
+src/lib/utils/
+└── ranking.ts            # Ranking Value 계산 (Z-Score 기반) ⭐
 
 public/
 └── simulation-worker.js  # Web Worker (JavaScript, 독립 실행)
@@ -29,7 +33,58 @@ export const THRESHOLD_STEP = 0.01      // 임계값 단위
 
 ---
 
-### 2. **tradingRules.ts** - 매수/매도 로직 관리
+### 2. **ranking.ts** - Ranking Value 계산 (Z-Score 기반, 슬라이딩 윈도우) ⭐
+
+**핵심 개념: 슬라이딩 윈도우 방식**
+```
+각 시점마다 이전 LOOKBACK_WINDOW(1000개) 데이터로 평균/표준편차 계산
+→ 미래 데이터를 사용하지 않음 (No Look-Ahead Bias)
+→ 실제 거래 환경과 동일한 조건
+
+⭐ 데이터 준비: calculateRequiredCandles() 함수가 자동으로
+   분석 기간 + 지표 계산용(150개) + 슬라이딩 윈도우용(1000개)를 계산
+→ 시뮬레이션 시작부터 충분한 데이터 확보
+```
+
+**TypeScript 구현:**
+```typescript
+// 1단계: 전체 지표 배열 계산
+const indicatorArrays = calculateAllIndicatorArrays(candles, indicators)
+
+// 2단계: 각 시점마다 슬라이딩 윈도우로 Z-Score 계산
+for (let i = 0; i < candles.length; i++) {
+  // 현재 시점 이전 LOOKBACK_WINDOW(1000개) 데이터
+  const windowStart = Math.max(0, i - LOOKBACK_WINDOW)
+  const macdWindow = indicatorArrays.macd.slice(windowStart, i)
+  
+  // 이 윈도우의 통계로 현재 시점의 Z-Score 계산
+  const macdMean = calculateAverage(macdWindow)
+  const macdStd = calculateStdDevP(macdWindow)
+  rankingValue += calculateZScore(indicatorArrays.macd[i], macdMean, macdStd)
+  
+  // 다른 지표들도 동일...
+}
+```
+
+**적용 범위:**
+- ✅ `src/lib/utils/ranking.ts` - Ranking Analysis 페이지
+- ✅ `public/simulation-worker.js` - Trading Simulation
+
+**중요:**
+- 각 시점마다 **이전 1000개 데이터**로 평균/표준편차 계산 (슬라이딩 윈도우)
+- **미래 데이터를 절대 사용하지 않음** → 실전 거래 가능
+- 각 지표를 Z-Score로 정규화하여 동일한 스케일로 비교
+- 5개 지표의 Z-Score를 합산하여 최종 Ranking Value 계산
+- **각 시점의 지표는 처음부터 해당 시점까지의 전체 데이터로 계산** (lookback 방식 아님)
+
+**데이터 준비:**
+- `calculateRequiredCandles()` 함수가 필요한 데이터 자동 계산
+- 분석 기간 + 지표 계산용(150개) + 슬라이딩 윈도우용(1000개)
+- 시뮬레이션 시작부터 충분한 1000개 데이터 보장
+
+---
+
+### 3. **tradingRules.ts** - 매수/매도 로직 관리
 ```typescript
 // ✅ 매수 비교 범위 판단
 export function checkBuyCondition(

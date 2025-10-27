@@ -112,6 +112,13 @@ const THRESHOLD_STEP = 0.01            // 임계값 단위 (0.01 = 1%)
 const POSITION_NONE = 0                // 포지션 없음
 const POSITION_LONG = 1                // 매수 포지션
 
+// ===== Ranking Value 계산 =====
+const LOOKBACK_WINDOW = 1000           // Z-Score 계산용 슬라이딩 윈도우 크기
+// 4시간봉: 1000개 = 약 168일
+// 2시간봉: 1000개 = 약 84일
+// 1시간봉: 1000개 = 약 42일
+// 30분봉: 1000개 = 약 21일
+
 // ===== 유틸리티 함수들 =====
 
 function generateCandleData(mainCandles, fiveMinCandles) {
@@ -256,53 +263,265 @@ function calculateRTI(candles) {
 }
 
 /**
- * 활성화된 지표들을 계산하여 합산
- * Ranking Value 방식과 동일하게 처리
+ * 평균 계산
  */
-function calculateRankingValue(candles, indicators) {
-  if (candles.length === 0) return 0
+function calculateAverage(values) {
+  if (values.length === 0) return 0
+  return values.reduce((sum, val) => sum + val, 0) / values.length
+}
+
+/**
+ * 표준편차 계산 (STDEV.P - 모집단 표준편차)
+ */
+function calculateStdDevP(values) {
+  if (values.length === 0) return 0
   
-  let totalValue = 0
-  let activeCount = 0
+  const mean = calculateAverage(values)
+  const squaredDiffs = values.map(val => Math.pow(val - mean, 2))
+  const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / values.length
+  
+  return Math.sqrt(variance)
+}
+
+/**
+ * Z-Score 계산 (표준점수)
+ * z-score = (값 - 평균) / 표준편차
+ */
+function calculateZScore(value, mean, stdDev) {
+  if (stdDev === 0) return 0
+  return (value - mean) / stdDev
+}
+
+/**
+ * 전체 캔들 데이터에서 각 지표의 값 배열 계산
+ * 엑셀 공식처럼 전체 열(I:I, J:J 등)의 데이터를 생성
+ * 
+ * ⚠️ 중요: 각 시점의 지표는 "처음부터 해당 시점까지"의 전체 데이터로 계산
+ * (최근 N개만 사용하는 lookback 방식이 아님)
+ */
+function calculateAllIndicatorArrays(candles, indicators) {
+  const arrays = {
+    macd: [],
+    rsi: [],
+    ao: [],
+    DP: [],
+    rti: []
+  }
+  
+  // 각 시점마다 처음부터 현재까지의 데이터로 지표 계산
+  for (let i = 0; i < candles.length; i++) {
+    // 처음(index 0)부터 현재(index i)까지의 모든 캔들 사용
+    const candlesUpToNow = candles.slice(0, i + 1)
+    
+    if (indicators.macd) {
+      arrays.macd.push(calculateMACD(candlesUpToNow))
+    }
+    if (indicators.rsi) {
+      arrays.rsi.push(calculateRSI(candlesUpToNow))
+    }
+    if (indicators.ao) {
+      arrays.ao.push(calculateAO(candlesUpToNow))
+    }
+    if (indicators.DP) {
+      arrays.DP.push(calculateDP(candlesUpToNow, 20))
+    }
+    if (indicators.rti) {
+      arrays.rti.push(calculateRTI(candlesUpToNow))
+    }
+  }
+  
+  return arrays
+}
+
+/**
+ * 각 지표 배열의 통계 계산 (평균, 표준편차)
+ */
+function calculateIndicatorStats(indicatorArrays, indicators) {
+  const stats = {}
+  
+  if (indicators.macd && indicatorArrays.macd.length > 0) {
+    stats.macd = {
+      mean: calculateAverage(indicatorArrays.macd),
+      stdDev: calculateStdDevP(indicatorArrays.macd)
+    }
+  }
+  
+  if (indicators.rsi && indicatorArrays.rsi.length > 0) {
+    stats.rsi = {
+      mean: calculateAverage(indicatorArrays.rsi),
+      stdDev: calculateStdDevP(indicatorArrays.rsi)
+    }
+  }
+  
+  if (indicators.ao && indicatorArrays.ao.length > 0) {
+    stats.ao = {
+      mean: calculateAverage(indicatorArrays.ao),
+      stdDev: calculateStdDevP(indicatorArrays.ao)
+    }
+  }
+  
+  if (indicators.DP && indicatorArrays.DP.length > 0) {
+    stats.DP = {
+      mean: calculateAverage(indicatorArrays.DP),
+      stdDev: calculateStdDevP(indicatorArrays.DP)
+    }
+  }
+  
+  if (indicators.rti && indicatorArrays.rti.length > 0) {
+    stats.rti = {
+      mean: calculateAverage(indicatorArrays.rti),
+      stdDev: calculateStdDevP(indicatorArrays.rti)
+    }
+  }
+  
+  return stats
+}
+
+/**
+ * Z-Score 기반 Ranking Value 계산 (전체 기간 통계 사용 - 구버전)
+ * ⚠️ 주의: 이 함수는 하위 호환성을 위해 유지됩니다
+ * 새로운 시뮬레이션은 calculateRankingValueZScoreSliding을 사용하세요
+ */
+function calculateRankingValueZScore(index, indicatorArrays, stats, indicators) {
+  let rankingValue = 0
   
   try {
-    // 각 지표 계산 및 합산
-    if (indicators.macd) {
-      const macdValue = calculateMACD(candles)
-      totalValue += macdValue
-      activeCount++
+    if (indicators.macd && indicatorArrays.macd[index] !== undefined && stats.macd) {
+      rankingValue += calculateZScore(
+        indicatorArrays.macd[index],
+        stats.macd.mean,
+        stats.macd.stdDev
+      )
     }
     
-    if (indicators.rsi) {
-      const rsiValue = calculateRSI(candles)
-      // RSI를 -50 ~ +50 범위로 변환 (중심을 0으로)
-      totalValue += (rsiValue - 50)
-      activeCount++
+    if (indicators.rsi && indicatorArrays.rsi[index] !== undefined && stats.rsi) {
+      rankingValue += calculateZScore(
+        indicatorArrays.rsi[index],
+        stats.rsi.mean,
+        stats.rsi.stdDev
+      )
     }
     
-    if (indicators.ao) {
-      const aoValue = calculateAO(candles)
-      totalValue += aoValue
-      activeCount++
+    if (indicators.ao && indicatorArrays.ao[index] !== undefined && stats.ao) {
+      rankingValue += calculateZScore(
+        indicatorArrays.ao[index],
+        stats.ao.mean,
+        stats.ao.stdDev
+      )
     }
     
-    if (indicators.DP) {
-      const DPValue = calculateDP(candles, 20)
-      totalValue += DPValue
-      activeCount++
+    if (indicators.DP && indicatorArrays.DP[index] !== undefined && stats.DP) {
+      rankingValue += calculateZScore(
+        indicatorArrays.DP[index],
+        stats.DP.mean,
+        stats.DP.stdDev
+      )
     }
     
-    if (indicators.rti) {
-      const rtiValue = calculateRTI(candles)
-      // RTI도 -50 ~ +50 범위로 변환
-      totalValue += (rtiValue - 50)
-      activeCount++
+    if (indicators.rti && indicatorArrays.rti[index] !== undefined && stats.rti) {
+      rankingValue += calculateZScore(
+        indicatorArrays.rti[index],
+        stats.rti.mean,
+        stats.rti.stdDev
+      )
     }
     
-    // 활성화된 지표가 없으면 0 반환
-    if (activeCount === 0) return 0
+    return rankingValue
+  } catch (error) {
+    return 0
+  }
+}
+
+/**
+ * Z-Score 기반 Ranking Value 계산 (슬라이딩 윈도우 방식) ⭐ NEW
+ * 
+ * 각 시점마다 이전 LOOKBACK_WINDOW(1000개) 데이터로 평균/표준편차 계산
+ * ⚠️ 중요: 미래 데이터를 사용하지 않음 (No Look-Ahead Bias)
+ * 
+ * @param {number} index - 현재 시점 인덱스
+ * @param {object} indicatorArrays - 전체 지표 배열 {macd: [], rsi: [], ...}
+ * @param {object} indicators - 사용할 지표 설정 {macd: true, rsi: true, ...}
+ * @returns {number} - Ranking Value (Z-Score 합산)
+ */
+function calculateRankingValueZScoreSliding(index, indicatorArrays, indicators) {
+  let rankingValue = 0
+  
+  try {
+    // 슬라이딩 윈도우 범위 계산 (현재 시점 이전 LOOKBACK_WINDOW개)
+    const windowStart = Math.max(0, index - LOOKBACK_WINDOW)
+    const windowSize = index - windowStart
     
-    return totalValue
+    // 최소 데이터 개수 확인 (통계 계산에 최소 10개 필요)
+    if (windowSize < 10) {
+      return 0
+    }
+    
+    // MACD Z-Score
+    if (indicators.macd && indicatorArrays.macd[index] !== undefined) {
+      const macdWindow = indicatorArrays.macd.slice(windowStart, index)
+      const macdMean = calculateAverage(macdWindow)
+      const macdStd = calculateStdDevP(macdWindow)
+      
+      rankingValue += calculateZScore(
+        indicatorArrays.macd[index],
+        macdMean,
+        macdStd
+      )
+    }
+    
+    // RSI Z-Score
+    if (indicators.rsi && indicatorArrays.rsi[index] !== undefined) {
+      const rsiWindow = indicatorArrays.rsi.slice(windowStart, index)
+      const rsiMean = calculateAverage(rsiWindow)
+      const rsiStd = calculateStdDevP(rsiWindow)
+      
+      rankingValue += calculateZScore(
+        indicatorArrays.rsi[index],
+        rsiMean,
+        rsiStd
+      )
+    }
+    
+    // AO Z-Score
+    if (indicators.ao && indicatorArrays.ao[index] !== undefined) {
+      const aoWindow = indicatorArrays.ao.slice(windowStart, index)
+      const aoMean = calculateAverage(aoWindow)
+      const aoStd = calculateStdDevP(aoWindow)
+      
+      rankingValue += calculateZScore(
+        indicatorArrays.ao[index],
+        aoMean,
+        aoStd
+      )
+    }
+    
+    // DP Z-Score
+    if (indicators.DP && indicatorArrays.DP[index] !== undefined) {
+      const DPWindow = indicatorArrays.DP.slice(windowStart, index)
+      const DPMean = calculateAverage(DPWindow)
+      const DPStd = calculateStdDevP(DPWindow)
+      
+      rankingValue += calculateZScore(
+        indicatorArrays.DP[index],
+        DPMean,
+        DPStd
+      )
+    }
+    
+    // RTI Z-Score
+    if (indicators.rti && indicatorArrays.rti[index] !== undefined) {
+      const rtiWindow = indicatorArrays.rti.slice(windowStart, index)
+      const rtiMean = calculateAverage(rtiWindow)
+      const rtiStd = calculateStdDevP(rtiWindow)
+      
+      rankingValue += calculateZScore(
+        indicatorArrays.rti[index],
+        rtiMean,
+        rtiStd
+      )
+    }
+    
+    return rankingValue
   } catch (error) {
     return 0
   }
@@ -473,24 +692,28 @@ function runGridSimulation(
     return
   }
   
-  const cachedIndicatorValues = []
-  const totalCandles = fiveMin.length
+  // Z-Score 기반 Ranking Value 계산 (슬라이딩 윈도우 방식) ⭐
+  // 1단계: 전체 지표 배열 계산
+  self.postMessage({
+    type: 'PROGRESS',
+    progress: 5,
+    message: '전체 지표 데이터 계산 중...'
+  })
   
+  const indicatorArrays = calculateAllIndicatorArrays(fiveMin, indicators)
+  
+  // 2단계: 각 시점의 Z-Score 기반 Ranking Value 계산 (슬라이딩 윈도우)
+  // 각 시점마다 이전 LOOKBACK_WINDOW(1000개) 데이터로 평균/표준편차 계산
+  self.postMessage({
+    type: 'PROGRESS',
+    progress: 7,
+    message: 'Ranking Value 계산 중 (슬라이딩 윈도우)...'
+  })
+  
+  const cachedIndicatorValues = []
   for (let i = 0; i < fiveMin.length; i++) {
-    const lookbackPeriod = Math.min(120, i + 1)
-    const candlesForIndicator = fiveMin.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
-    const indicatorValue = calculateRankingValue(candlesForIndicator, indicators) // indicators 사용 ✨
-    cachedIndicatorValues.push(indicatorValue)
-    
-    // 지표 캐싱 진행률 (10% 단위로)
-    if (i % Math.max(1, Math.floor(totalCandles / 10)) === 0 || i === totalCandles - 1) {
-      const cacheProgress = ((i + 1) / totalCandles) * 100 * 0.1 // 전체의 10%까지
-      self.postMessage({
-        type: 'PROGRESS',
-        progress: cacheProgress,
-        message: `지표 계산 중... ${Math.floor((i + 1) / totalCandles * 100)}%`
-      })
-    }
+    const rankingValue = calculateRankingValueZScoreSliding(i, indicatorArrays, indicators)
+    cachedIndicatorValues.push(rankingValue)
   }
   
   self.postMessage({
@@ -630,19 +853,19 @@ function runDetailedSimulation(
     holdBasePrice = analysisStartPrice  // 시뮬레이션 시작 시점 가격 기준
   }
 
-  // 지표 값 저장 배열
+  // Z-Score 기반 지표 값 계산 (슬라이딩 윈도우 방식) ⭐
+  const indicatorArrays = calculateAllIndicatorArrays(fiveMin, indicators)
+  
   const indicatorValues = []
+  for (let i = 0; i < fiveMin.length; i++) {
+    const rankingValue = calculateRankingValueZScoreSliding(i, indicatorArrays, indicators)
+    indicatorValues.push(rankingValue)
+  }
 
   // 각 5분 캔들마다 순회
   for (let i = 0; i < fiveMin.length; i++) {
     const currentCandle = fiveMin[i]
-    
-    // 지표 계산 (runGridSimulation과 동일한 lookback 로직 사용)
-    const lookbackPeriod = Math.min(120, i + 1)
-    const candlesForIndicator = fiveMin.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
-    
-    const rankingValue = calculateRankingValue(candlesForIndicator, indicators)
-    indicatorValues.push(rankingValue)
+    const rankingValue = indicatorValues[i]
 
     let decision = 'hold'
     const currentPrice = currentCandle.close

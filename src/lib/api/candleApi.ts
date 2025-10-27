@@ -169,10 +169,23 @@ export const fetchMultipleCandles = async ({
 
 /**
  * 필요한 캔들 개수 계산 (기간과 타임프레임 기준)
+ * 
+ * ⚠️ Deprecated: 이 함수는 하위 호환성을 위해 유지됩니다.
+ * 새 코드에서는 @/lib/utils/ranking.ts의 calculateRequiredCandles를 사용하세요.
+ * (슬라이딩 윈도우 LOOKBACK_WINDOW가 포함됨)
  */
 export const calculateRequiredCandles = (period: Period, timeFrame: TimeFrame): number => {
   const days = PERIOD_DAYS[period]
   const hoursPerCandle = TIMEFRAME_HOURS[timeFrame]
-  return Math.ceil((days * 24) / hoursPerCandle)
+  const periodCandles = Math.ceil((days * 24) / hoursPerCandle)
+  
+  // 지표 계산용 버퍼
+  const indicatorBuffer = 150
+  
+  // 슬라이딩 윈도우용 버퍼 (LOOKBACK_WINDOW = 1000개)
+  const slidingWindowBuffer = 1000
+  
+  // 총 필요한 캔들 = 분석 기간 + 지표 계산용 + 슬라이딩 윈도우용
+  return periodCandles + indicatorBuffer + slidingWindowBuffer
 }
 

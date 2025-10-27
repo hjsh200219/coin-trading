@@ -10,6 +10,13 @@ export const INITIAL_CAPITAL = 1000000 // 초기 자본 (100만원)
 export const MAX_LOOKBACK_PERIOD = 120 // 최대 lookback 기간 (캔들 개수)
 export const RSI_PERIOD = 14 // RSI 계산 기간
 
+// ===== Ranking Value 계산 =====
+export const LOOKBACK_WINDOW = 1000 // Z-Score 계산용 슬라이딩 윈도우 크기
+// 4시간봉: 1000개 = 약 168일
+// 2시간봉: 1000개 = 약 84일
+// 1시간봉: 1000개 = 약 42일
+// 30분봉: 1000개 = 약 21일
+
 // ===== 시뮬레이션 성능 =====
 export const BATCH_SIZE = 10 // 배치 처리 크기 (진행률 업데이트 간격)
 export const UI_UPDATE_DELAY = 10 // UI 업데이트 딜레이 (ms)

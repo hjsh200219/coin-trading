@@ -9,6 +9,7 @@ import {
   calculateDP,
   calculateRTI,
 } from '@/lib/indicators/calculator'
+import { LOOKBACK_WINDOW } from '@/lib/simulation/constants'
 
 /**
  * 평균 계산
@@ -41,10 +42,13 @@ function calculateZScore(value: number, mean: number, stdDev: number): number {
 }
 
 /**
- * Ranking Value 계산
+ * Ranking Value 계산 (슬라이딩 윈도우 방식)
  * - 5개의 보조지표(MACD, RSI, AO, DP, RTI)를 기반으로 Z-score 합산
+ * - 각 시점마다 이전 LOOKBACK_WINDOW(1000개) 데이터로 평균/표준편차 계산
  * - baseDate와 period를 기준으로 데이터 필터링
  * - indicatorConfig로 사용할 지표 선택
+ * 
+ * ⚠️ 중요: 미래 데이터를 사용하지 않음 (No Look-Ahead Bias)
  */
 export function calculateRankingValues(
   candles: Candle[],
@@ -70,7 +74,7 @@ export function calculateRankingValues(
 
   if (filteredCandles.length === 0) return []
 
-  // 지표 계산
+  // 전체 기간의 지표 계산
   const macdResult = indicatorConfig.macd ? calculateMACD(filteredCandles) : null
   const rsiResult = indicatorConfig.rsi ? calculateRSI(filteredCandles) : null
   const aoResult = indicatorConfig.ao ? calculateAO(filteredCandles) : null
@@ -110,24 +114,48 @@ export function calculateRankingValues(
     : null
   const rtiValues = rtiResult ? rtiResult.rti.slice(rtiResult.rti.length - minLength) : null
 
-  // 평균 및 표준편차 계산 (활성화된 지표만)
-  const macdAvg = macdValues ? calculateAverage(macdValues) : 0
-  const macdStd = macdValues ? calculateStdDevP(macdValues) : 1
-
-  const rsiAvg = rsiValues ? calculateAverage(rsiValues) : 0
-  const rsiStd = rsiValues ? calculateStdDevP(rsiValues) : 1
-
-  const aoAvg = aoValues ? calculateAverage(aoValues) : 0
-  const aoStd = aoValues ? calculateStdDevP(aoValues) : 1
-
-  const DPAvg = DPValues ? calculateAverage(DPValues) : 0
-  const DPStd = DPValues ? calculateStdDevP(DPValues) : 1
-
-  const rtiAvg = rtiValues ? calculateAverage(rtiValues) : 0
-  const rtiStd = rtiValues ? calculateStdDevP(rtiValues) : 1
-
-  // Z-score 계산 및 랭킹 값 생성
+  // ⭐ 슬라이딩 윈도우 방식으로 Z-score 계산 및 랭킹 값 생성
   const rankings: RankingDataPoint[] = alignedCandles.map((candle, i) => {
+    // 현재 시점의 이전 LOOKBACK_WINDOW개 데이터로 통계 계산
+    const windowStart = Math.max(0, i - LOOKBACK_WINDOW)
+    const windowSize = i - windowStart // 실제 윈도우 크기 (처음에는 1000개보다 작을 수 있음)
+
+    // 최소 데이터 개수 확인 (통계 계산에 최소 10개 필요)
+    if (windowSize < 10) {
+      return {
+        timestamp: candle.timestamp,
+        macd: macdValues ? macdValues[i] : null,
+        rsi: rsiValues ? rsiValues[i] : null,
+        ao: aoValues ? aoValues[i] : null,
+        DP: DPValues ? DPValues[i] : null,
+        rti: rtiValues ? rtiValues[i] : null,
+        rankingValue: 0, // 데이터가 부족하면 0
+      }
+    }
+
+    // 각 지표의 슬라이딩 윈도우 데이터로 평균/표준편차 계산
+    const macdWindow = macdValues ? macdValues.slice(windowStart, i) : null
+    const rsiWindow = rsiValues ? rsiValues.slice(windowStart, i) : null
+    const aoWindow = aoValues ? aoValues.slice(windowStart, i) : null
+    const DPWindow = DPValues ? DPValues.slice(windowStart, i) : null
+    const rtiWindow = rtiValues ? rtiValues.slice(windowStart, i) : null
+
+    const macdAvg = macdWindow ? calculateAverage(macdWindow) : 0
+    const macdStd = macdWindow ? calculateStdDevP(macdWindow) : 1
+
+    const rsiAvg = rsiWindow ? calculateAverage(rsiWindow) : 0
+    const rsiStd = rsiWindow ? calculateStdDevP(rsiWindow) : 1
+
+    const aoAvg = aoWindow ? calculateAverage(aoWindow) : 0
+    const aoStd = aoWindow ? calculateStdDevP(aoWindow) : 1
+
+    const DPAvg = DPWindow ? calculateAverage(DPWindow) : 0
+    const DPStd = DPWindow ? calculateStdDevP(DPWindow) : 1
+
+    const rtiAvg = rtiWindow ? calculateAverage(rtiWindow) : 0
+    const rtiStd = rtiWindow ? calculateStdDevP(rtiWindow) : 1
+
+    // 현재 시점의 Z-Score 계산
     let rankingValue = 0
 
     if (macdValues) {
@@ -204,12 +232,23 @@ export function timeFrameToMinutes(timeFrame: string): number {
 
 /**
  * Period와 TimeFrame으로부터 필요한 캔들 개수 계산
+ * 
+ * ⭐ 슬라이딩 윈도우 방식: 시뮬레이션 시작 전 LOOKBACK_WINDOW(1000개) 추가 필요
  */
 export function calculateRequiredCandles(period: string, timeFrame: string): number {
   const days = periodToDays(period)
   const minutesPerCandle = timeFrameToMinutes(timeFrame)
   const candlesPerDay = (24 * 60) / minutesPerCandle
 
-  // 필요한 캔들 수 + 지표 계산을 위한 추가 캔들 (RTI는 100개 필요)
-  return Math.ceil(days * candlesPerDay) + 150
+  // 필요한 캔들 수 계산
+  const periodCandles = Math.ceil(days * candlesPerDay)
+  
+  // 지표 계산용 추가 캔들 (RTI는 100개 필요)
+  const indicatorBuffer = 150
+  
+  // 슬라이딩 윈도우용 추가 캔들 (LOOKBACK_WINDOW = 1000개)
+  const slidingWindowBuffer = LOOKBACK_WINDOW
+  
+  // 총 필요한 캔들 = 분석 기간 + 지표 계산용 + 슬라이딩 윈도우용
+  return periodCandles + indicatorBuffer + slidingWindowBuffer
 }
