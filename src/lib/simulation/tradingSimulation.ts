@@ -1,6 +1,12 @@
 /**
  * Trading Simulation Logic
- * 2시간 봉 기반의 5분 간격 매매 시뮬레이션
+ * 타임프레임별 세밀한 간격의 매매 시뮬레이션
+ * 
+ * - 1일봉 → 5분 간격 시뮬레이션
+ * - 4시간봉 → 1분 간격 시뮬레이션
+ * - 2시간봉 → 1분 간격 시뮬레이션
+ * - 1시간봉 → 1분 간격 시뮬레이션
+ * - 30분봉 → 1분 간격 시뮬레이션
  * 
  * 매수/매도 로직은 @/lib/simulation/tradingRules에 정의되어 있습니다
  * 상수는 @/lib/simulation/constants에 정의되어 있습니다
@@ -61,20 +67,36 @@ export interface SimulationResult {
 }
 
 /**
- * 5분 간격 시뮬레이션용 캔들 데이터 생성
- * 실제 5분봉 데이터 사용
+ * 시뮬레이션용 캔들 데이터 생성
+ * 
+ * 타임프레임에 따라 적절한 세밀도의 캔들 데이터 사용:
+ * - 1일봉 → 5분봉 시뮬레이션
+ * - 4시간봉 → 1분봉 시뮬레이션
+ * - 2시간봉 → 1분봉 시뮬레이션
+ * - 1시간봉 → 1분봉 시뮬레이션
+ * - 30분봉 → 1분봉 시뮬레이션
+ */
+export function generateSimulationCandles(
+  mainCandles: CandleData[],
+  simulationCandles: CandleData[]
+): CandleData[] {
+  // 세밀한 시뮬레이션 캔들 데이터 사용
+  if (simulationCandles && simulationCandles.length > 0) {
+    return simulationCandles
+  }
+
+  // 시뮬레이션 데이터가 없으면 빈 배열 반환 (시뮬레이션 불가)
+  return []
+}
+
+/**
+ * @deprecated generate5MinCandles는 generateSimulationCandles로 대체됨
  */
 export function generate5MinCandles(
   twoHourCandles: CandleData[],
   fiveMinCandles: CandleData[]
 ): CandleData[] {
-  // 실제 5분봉 데이터 사용
-  if (fiveMinCandles && fiveMinCandles.length > 0) {
-    return fiveMinCandles
-  }
-
-  // 5분봉 데이터가 없으면 빈 배열 반환 (시뮬레이션 불가)
-  return []
+  return generateSimulationCandles(twoHourCandles, fiveMinCandles)
 }
 
 /**
@@ -142,18 +164,18 @@ export { calculateMinMax } from './tradingRules'
  * @param cachedIndicatorValues - 미리 계산된 지표 값 배열 (성능 최적화용)
  */
 export function runTradingSimulation(
-  twoHourCandles: CandleData[],
-  fiveMinCandles: CandleData[],
+  mainCandles: CandleData[],
+  simulationCandles: CandleData[],
   config: SimulationConfig,
   cachedIndicatorValues?: number[]
 ): SimulationResult {
   const trades: TradeRecord[] = []
   
-  // 5분봉 데이터 생성
-  const fiveMin = generate5MinCandles(twoHourCandles, fiveMinCandles)
+  // 시뮬레이션 캔들 데이터 생성
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
   
   // 데이터 검증
-  if (fiveMin.length === 0) {
+  if (simCandles.length === 0) {
     return {
       totalReturn: 0,
       tradeCount: 0,
@@ -163,7 +185,7 @@ export function runTradingSimulation(
   }
   
   // 초기 포지션 설정 (createInitialPosition 사용)
-  const initialPrice = fiveMin[0].close
+  const initialPrice = simCandles[0].close
   let tradingPosition: TradingPosition = createInitialPosition(
     config.initialPosition || 'cash',
     initialPrice
@@ -174,9 +196,9 @@ export function runTradingSimulation(
   
   // 캐시가 없을 경우에만 지표 계산 (MAX_LOOKBACK_PERIOD 사용)
   if (!cachedIndicatorValues) {
-    for (let i = 0; i < fiveMin.length; i++) {
+    for (let i = 0; i < simCandles.length; i++) {
       const lookbackPeriod = Math.min(MAX_LOOKBACK_PERIOD, i + 1)
-      const candlesForIndicator = fiveMin.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
+      const candlesForIndicator = simCandles.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
       const indicatorValue = calculateIndicatorValue(candlesForIndicator, 'RTI')
       indicatorValues.push(indicatorValue)
     }
@@ -186,9 +208,9 @@ export function runTradingSimulation(
   const startIndex = Math.max(config.buyConditionCount, config.sellConditionCount)
   
   // 시작 인덱스부터 시뮬레이션 (중앙화된 tradingRules 사용)
-  for (let i = startIndex; i < fiveMin.length; i++) {
+  for (let i = startIndex; i < simCandles.length; i++) {
     const indicatorValue = indicatorValues[i]
-    const currentPrice = fiveMin[i].close
+    const currentPrice = simCandles[i].close
     
     // 매수 비교 범위 체크 (tradingRules.checkBuyCondition 사용)
     if (tradingPosition.position === POSITION_NONE && i >= config.buyConditionCount) {
@@ -201,7 +223,7 @@ export function runTradingSimulation(
         tradingPosition = executeBuy(tradingPosition, currentPrice)
         
         trades.push({
-          timestamp: fiveMin[i].timestamp,
+          timestamp: simCandles[i].timestamp,
           action: 'buy',
           price: currentPrice,
           minValue: buyCheck.minValue,
@@ -221,7 +243,7 @@ export function runTradingSimulation(
         tradingPosition = executeSell(tradingPosition, currentPrice)
         
         trades.push({
-          timestamp: fiveMin[i].timestamp,
+          timestamp: simCandles[i].timestamp,
           action: 'sell',
           price: currentPrice,
           maxValue: sellCheck.maxValue,
@@ -232,7 +254,7 @@ export function runTradingSimulation(
   }
   
   // 마지막에 포지션이 있으면 청산 (tradingRules.liquidatePosition 사용)
-  const finalPrice = fiveMin[fiveMin.length - 1].close
+  const finalPrice = simCandles[simCandles.length - 1].close
   tradingPosition = liquidatePosition(tradingPosition, finalPrice)
   
   // 수익률 계산 (tradingRules.calculateTotalReturn 사용)
@@ -262,8 +284,8 @@ export interface GridSimulationResult {
 }
 
 export async function runGridSimulation(
-  twoHourCandles: CandleData[],
-  fiveMinCandles: CandleData[],
+  mainCandles: CandleData[],
+  simulationCandles: CandleData[],
   buyConditionCount: number,
   sellConditionCount: number,
   buyThresholdMin: number,
@@ -291,18 +313,18 @@ export async function runGridSimulation(
   let currentIteration = 0
   
   // ⚡ 성능 최적화: 지표를 한 번만 계산하고 캐싱
-  const fiveMin = generate5MinCandles(twoHourCandles, fiveMinCandles)
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
   
-  if (fiveMin.length === 0) {
+  if (simCandles.length === 0) {
     return null
   }
   
   const cachedIndicatorValues: number[] = []
   
   // MAX_LOOKBACK_PERIOD 사용하여 지표 계산
-  for (let i = 0; i < fiveMin.length; i++) {
+  for (let i = 0; i < simCandles.length; i++) {
     const lookbackPeriod = Math.min(MAX_LOOKBACK_PERIOD, i + 1)
-    const candlesForIndicator = fiveMin.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
+    const candlesForIndicator = simCandles.slice(Math.max(0, i - lookbackPeriod + 1), i + 1)
     const indicatorValue = calculateIndicatorValue(candlesForIndicator, 'RTI')
     cachedIndicatorValues.push(indicatorValue)
   }
@@ -329,8 +351,8 @@ export async function runGridSimulation(
       
       // 캐시된 지표 값을 사용하여 시뮬레이션 (매우 빠름!)
       const result = runTradingSimulation(
-        twoHourCandles,
-        fiveMinCandles,
+        mainCandles,
+        simulationCandles,
         config,
         cachedIndicatorValues // 캐시된 값 전달
       )

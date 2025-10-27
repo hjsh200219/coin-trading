@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button'
 import { AnalysisSettings } from '@/components/common'
 import type { GridSimulationResult } from '@/lib/simulation/tradingSimulation'
 import type { TimeFrame, Period, Exchange, IndicatorConfig } from '@/types/chart'
-import { calculateRequiredCandles } from '@/lib/utils/ranking'
+import { calculateRequiredCandles, getSimulationTimeFrame, getSimulationMultiplier } from '@/lib/utils/ranking'
 import type { Candle } from '@/lib/bithumb/types'
 import { formatChartTime } from '@/lib/utils/format'
 import { fetchMultipleCandles as fetchCandlesApi, API_LIMITS, getApiPath } from '@/lib/api/candleApi'
@@ -265,21 +265,38 @@ export default function TradingSimulationContent({
   }
 
   /**
-   * 5분봉 데이터를 여러 번 호출하여 전체 기간 데이터 수집
+   * 시뮬레이션용 캔들 데이터를 여러 번 호출하여 전체 기간 데이터 수집
+   * 
+   * @param simulationTimeFrame - 시뮬레이션에 사용할 타임프레임 (예: '5m', '1m')
+   * @param requiredCount - 필요한 캔들 개수
+   * @param baseDateTimestamp - 기준 날짜 타임스탬프
    */
-  const fetchMultiple5MinCandles = async (
+  const fetchMultipleSimulationCandles = async (
+    simulationTimeFrame: TimeFrame,
     requiredCount: number,
     baseDateTimestamp: number,
     onProgress?: (current: number, total: number) => void
   ): Promise<Candle[]> => {
-    // 5분봉 기준으로 필요한 시간 범위 계산
-    const fiveMinMs = 5 * 60 * 1000
-    const startTimestamp = baseDateTimestamp - (requiredCount * fiveMinMs)
+    // 타임프레임별 밀리초 계산
+    const timeFrameMinutes: Record<string, number> = {
+      '1m': 1,
+      '5m': 5,
+      '10m': 10,
+      '30m': 30,
+      '1h': 60,
+      '2h': 120,
+      '4h': 240,
+      '1d': 1440,
+    }
+    
+    const minutes = timeFrameMinutes[simulationTimeFrame] || 5
+    const candleMs = minutes * 60 * 1000
+    const startTimestamp = baseDateTimestamp - (requiredCount * candleMs)
 
     const result = await fetchCandlesApi({
       symbol,
       exchange,
-      timeFrame: '5m',
+      timeFrame: simulationTimeFrame,
       startTimestamp,
       endTimestamp: baseDateTimestamp,
       maxIterations: 20,
@@ -352,18 +369,22 @@ export default function TradingSimulationContent({
         throw new Error('데이터가 없습니다')
       }
 
-      // 2. 5분봉 데이터 로드 (다중 호출)
-      setProgressMessage('5분봉 데이터 로드 중...')
-      const required5MinCandles = requiredCandles * 24 // 2시간 = 24 × 5분
+      // 2. 시뮬레이션용 캔들 데이터 로드 (타임프레임별 간격)
+      const simulationTimeFrame = getSimulationTimeFrame(timeFrame)
+      const simulationMultiplier = getSimulationMultiplier(timeFrame)
+      
+      setProgressMessage(`${simulationTimeFrame} 데이터 로드 중...`)
+      const requiredSimulationCandles = requiredCandles * simulationMultiplier
       const baseDateTimestamp = new Date(baseDate + 'T23:59:59+09:00').getTime()
       
-      const fiveMinCandles = await fetchMultiple5MinCandles(
-        required5MinCandles,
+      const simulationCandles = await fetchMultipleSimulationCandles(
+        simulationTimeFrame as TimeFrame,
+        requiredSimulationCandles,
         baseDateTimestamp,
         (current, total) => {
           const progress = (current / total) * 50 // 0-50% 진행률
           setProgress(progress)
-          setProgressMessage(`5분봉 데이터 로드 중... (${current}/${total})`)
+          setProgressMessage(`${simulationTimeFrame} 데이터 로드 중... (${current}/${total})`)
         }
       )
 
@@ -376,7 +397,7 @@ export default function TradingSimulationContent({
         close: c.close
       }))
 
-      const fiveMinCandleData = fiveMinCandles.map(c => ({
+      const simulationCandleData = simulationCandles.map(c => ({
         timestamp: c.timestamp,
         open: c.open,
         high: c.high,
@@ -384,8 +405,8 @@ export default function TradingSimulationContent({
         close: c.close
       }))
 
-      const is5MinAvailable = fiveMinCandleData.length > 0
-      setUsing5Min(is5MinAvailable)
+      const isSimulationDataAvailable = simulationCandleData.length > 0
+      setUsing5Min(isSimulationDataAvailable)
 
       // 4. Web Worker에 시뮬레이션 작업 전달 ⚡
       if (workerRef.current) {
@@ -393,7 +414,7 @@ export default function TradingSimulationContent({
           type: 'START_SIMULATION',
           data: {
             mainCandles,
-            fiveMinCandles: fiveMinCandleData.length > 0 ? fiveMinCandleData : mainCandles,
+            simulationCandles: simulationCandleData.length > 0 ? simulationCandleData : mainCandles,
             buyConditionCount,
             sellConditionCount,
             buyThresholdMin,
@@ -548,7 +569,9 @@ export default function TradingSimulationContent({
 
     // 필요한 캔들 개수 계산 (handleSimulate와 동일하게)
     const requiredCandles = calculateRequiredCandles(period, timeFrame)
-    const required5MinCandles = requiredCandles * 24
+    const simulationTimeFrame = getSimulationTimeFrame(timeFrame)
+    const simulationMultiplier = getSimulationMultiplier(timeFrame)
+    const requiredSimulationCandles = requiredCandles * simulationMultiplier
     const baseDateTimestamp = new Date(baseDate + 'T23:59:59+09:00').getTime()
 
     try {
@@ -576,16 +599,17 @@ export default function TradingSimulationContent({
         close: c.close
       }))
 
-      // 5분봉 데이터 다중 호출로 가져오기
-      setDetailLoadingMessage('5분봉 데이터 로드 중...')
-      const fiveMinCandles = await fetchMultiple5MinCandles(
-        required5MinCandles,
+      // 시뮬레이션 캔들 데이터 다중 호출로 가져오기
+      setDetailLoadingMessage(`${simulationTimeFrame} 데이터 로드 중...`)
+      const simulationCandles = await fetchMultipleSimulationCandles(
+        simulationTimeFrame as TimeFrame,
+        requiredSimulationCandles,
         baseDateTimestamp,
         (current, total) => {
           // 10% ~ 80% 진행률 (데이터 로딩)
           const progress = 10 + (current / total) * 70
           setDetailLoadingProgress(progress)
-          setDetailLoadingMessage(`5분봉 데이터 로드 중... (${current}/${total})`)
+          setDetailLoadingMessage(`${simulationTimeFrame} 데이터 로드 중... (${current}/${total})`)
         }
       )
 
@@ -597,7 +621,7 @@ export default function TradingSimulationContent({
         type: 'GET_DETAIL',
         data: {
           mainCandles,
-          fiveMinCandles: fiveMinCandles.length > 0 ? fiveMinCandles : mainCandles,
+          simulationCandles: simulationCandles.length > 0 ? simulationCandles : mainCandles,
           buyConditionCount,
           sellConditionCount,
           buyThreshold,
@@ -1071,7 +1095,7 @@ export default function TradingSimulationContent({
             </p>
             {using5Min !== null && (
               <p className="text-xs text-foreground/60">
-                * 데이터: {using5Min ? '5분봉 기반 시뮬레이션' : `${timeFrame} 봉 기반 시뮬레이션 (5분봉 미제공)`}
+                * 데이터: {using5Min ? `${getSimulationTimeFrame(timeFrame)} 봉 기반 시뮬레이션` : `${timeFrame} 봉 기반 시뮬레이션`}
               </p>
             )}
           </div>

@@ -9,7 +9,7 @@ import {
   calculateDP,
   calculateRTI,
 } from '@/lib/indicators/calculator'
-import { LOOKBACK_WINDOW } from '@/lib/simulation/constants'
+import { LOOKBACK_WINDOW, SIMULATION_TIMEFRAME_MAP, SIMULATION_MULTIPLIER_MAP } from '@/lib/simulation/constants'
 
 /**
  * 평균 계산
@@ -228,6 +228,34 @@ export function timeFrameToMinutes(timeFrame: string): number {
     default:
       return 60
   }
+}
+
+/**
+ * 타임프레임에 따른 시뮬레이션 간격 가져오기
+ * 
+ * @param mainTimeFrame - 메인 타임프레임 (1d, 4h, 2h, 1h, 30m, etc.)
+ * @returns 시뮬레이션에 사용할 세부 타임프레임
+ * 
+ * @example
+ * getSimulationTimeFrame('1d') // '5m' (5분봉)
+ * getSimulationTimeFrame('4h') // '1m' (1분봉)
+ */
+export function getSimulationTimeFrame(mainTimeFrame: string): string {
+  return SIMULATION_TIMEFRAME_MAP[mainTimeFrame] || '5m' // 기본값 5분
+}
+
+/**
+ * 타임프레임에 따른 시뮬레이션 배수 가져오기
+ * 
+ * @param mainTimeFrame - 메인 타임프레임
+ * @returns 시뮬레이션 캔들 개수 배수
+ * 
+ * @example
+ * getSimulationMultiplier('1d') // 288 (1일 = 5분 × 288)
+ * getSimulationMultiplier('4h') // 240 (4시간 = 1분 × 240)
+ */
+export function getSimulationMultiplier(mainTimeFrame: string): number {
+  return SIMULATION_MULTIPLIER_MAP[mainTimeFrame] || 24 // 기본값 24배
 }
 
 /**

@@ -1,6 +1,132 @@
 # 시뮬레이션 로직 변경 내역
 
-## 📅 2025-10-27 (주요 업데이트)
+## 📅 2025-10-27 (최신 업데이트)
+
+### 🎯 타임프레임별 시뮬레이션 간격 구현 ⭐⭐⭐
+
+#### **변경 이유**
+기존에는 모든 타임프레임에서 **5분봉으로 고정**하여 시뮬레이션을 실행했습니다. 이는 타임프레임별 차별화가 없고, 세밀한 매매 타이밍을 포착하기에 부족했습니다.
+
+#### **변경 내용**
+
+**타임프레임별 시뮬레이션 간격 매핑:**
+
+| 메인 타임프레임 | 시뮬레이션 간격 | 배수 | 세밀도 |
+|------------------|------------------|------|---------|
+| **1일봉** | 5분봉 | 288배 | 1일 = 5분 × 288 |
+| **4시간봉** | 1분봉 | 240배 | 4시간 = 1분 × 240 |
+| **2시간봉** | 1분봉 | 120배 | 2시간 = 1분 × 120 |
+| **1시간봉** | 1분봉 | 60배 | 1시간 = 1분 × 60 |
+| **30분봉** | 1분봉 | 30배 | 30분 = 1분 × 30 |
+
+#### **구현 내용**
+
+**1. constants.ts - 타임프레임별 매핑 추가**
+```typescript
+export const SIMULATION_TIMEFRAME_MAP: Record<string, string> = {
+  '1d': '5m',   // 1일봉 → 5분봉 시뮬레이션
+  '4h': '1m',   // 4시간봉 → 1분봉 시뮬레이션
+  '2h': '1m',   // 2시간봉 → 1분봉 시뮬레이션
+  '1h': '1m',   // 1시간봉 → 1분봉 시뮬레이션
+  '30m': '1m',  // 30분봉 → 1분봉 시뮬레이션
+}
+
+export const SIMULATION_MULTIPLIER_MAP: Record<string, number> = {
+  '1d': 288,    // 1일 = 1440분 / 5분 = 288개
+  '4h': 240,    // 4시간 = 240분 / 1분 = 240개
+  '2h': 120,    // 2시간 = 120분 / 1분 = 120개
+  '1h': 60,     // 1시간 = 60분 / 1분 = 60개
+  '30m': 30,    // 30분 = 30분 / 1분 = 30개
+}
+```
+
+**2. ranking.ts - 헬퍼 함수 추가**
+```typescript
+// 타임프레임에 따른 시뮬레이션 간격 가져오기
+export function getSimulationTimeFrame(mainTimeFrame: string): string {
+  return SIMULATION_TIMEFRAME_MAP[mainTimeFrame] || '5m'
+}
+
+// 타임프레임에 따른 시뮬레이션 배수 가져오기
+export function getSimulationMultiplier(mainTimeFrame: string): number {
+  return SIMULATION_MULTIPLIER_MAP[mainTimeFrame] || 24
+}
+```
+
+**3. TradingSimulationContent.tsx - 데이터 가져오기 로직 변경**
+```typescript
+// 기존: 항상 5분봉
+const required5MinCandles = requiredCandles * 24
+
+// 변경: 타임프레임별 시뮬레이션 간격
+const simulationTimeFrame = getSimulationTimeFrame(timeFrame)
+const simulationMultiplier = getSimulationMultiplier(timeFrame)
+const requiredSimulationCandles = requiredCandles * simulationMultiplier
+
+// 데이터 가져오기
+const simulationCandles = await fetchMultipleSimulationCandles(
+  simulationTimeFrame as TimeFrame,
+  requiredSimulationCandles,
+  baseDateTimestamp,
+  onProgress
+)
+```
+
+**4. tradingSimulation.ts - 파라미터명 변경**
+```typescript
+// 기존
+export function runTradingSimulation(
+  twoHourCandles: CandleData[],
+  fiveMinCandles: CandleData[],
+  // ...
+)
+
+// 변경
+export function runTradingSimulation(
+  mainCandles: CandleData[],
+  simulationCandles: CandleData[],
+  // ...
+)
+
+// 함수 내부
+const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
+```
+
+**5. simulation-worker.js - Worker 파일 동기화**
+```javascript
+// fiveMinCandles → simulationCandles로 변경
+// generateCandleData → generateSimulationCandles로 변경
+// 모든 함수 파라미터명 통일
+```
+
+#### **기대 효과**
+
+1. **타임프레임별 차별화** ✅
+   - 1일봉: 5분마다 매매 판단 (하루 288번)
+   - 4시간봉: 1분마다 매매 판단 (4시간 240번)
+   - 더 세밀한 매매 타이밍 포착
+
+2. **실제 거래소 API 지원** ✅
+   - Binance, Upbit, Bithumb 모두 1분봉, 5분봉 지원
+   - API 범위 내에서 최대한 세밀하게
+
+3. **일관된 명명** ✅
+   - `fiveMinCandles` → `simulationCandles`
+   - 타임프레임에 구애받지 않는 명명
+
+#### **수정된 파일**
+
+- ✅ `src/lib/simulation/constants.ts` - 타임프레임 매핑 추가
+- ✅ `src/lib/utils/ranking.ts` - 헬퍼 함수 추가
+- ✅ `src/app/simulation/[symbol]/TradingSimulationContent.tsx` - 데이터 가져오기 변경
+- ✅ `src/lib/simulation/tradingSimulation.ts` - 파라미터명 변경
+- ✅ `public/simulation-worker.js` - Worker 동기화
+- ✅ `src/lib/simulation/README.md` - 문서 업데이트
+- ✅ `src/lib/simulation/CHANGELOG.md` - 이 변경 내역 추가
+
+---
+
+## 📅 2025-10-27 (이전 업데이트)
 
 ### 🎯 슬라이딩 윈도우 방식으로 Ranking Value 계산 변경 ⭐⭐⭐
 

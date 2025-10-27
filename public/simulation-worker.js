@@ -22,7 +22,7 @@ self.onmessage = function(e) {
     try {
       const {
         mainCandles,
-        fiveMinCandles,
+        simulationCandles, // 변경: simCandlesCandles → simulationCandles
         buyConditionCount,
         sellConditionCount,
         buyThresholdMin,
@@ -37,7 +37,7 @@ self.onmessage = function(e) {
     // 시뮬레이션 실행
       runGridSimulation(
         mainCandles,
-        fiveMinCandles,
+        simulationCandles, // 변경: simCandlesCandles → simulationCandles
         buyConditionCount,
         sellConditionCount,
         buyThresholdMin,
@@ -58,7 +58,7 @@ self.onmessage = function(e) {
     try {
       const {
         mainCandles,
-        fiveMinCandles,
+        simulationCandles, // 변경: simCandlesCandles → simulationCandles
         buyConditionCount,
         sellConditionCount,
         buyThreshold,
@@ -68,11 +68,11 @@ self.onmessage = function(e) {
         baseDate,
         period
       } = data
-
+      
       // 상세 내역 생성
       const result = runDetailedSimulation(
         mainCandles,
-        fiveMinCandles,
+        simulationCandles, // 변경: simCandlesCandles → simulationCandles
         buyConditionCount,
         sellConditionCount,
         buyThreshold,
@@ -121,11 +121,26 @@ const LOOKBACK_WINDOW = 1000           // Z-Score 계산용 슬라이딩 윈도�
 
 // ===== 유틸리티 함수들 =====
 
-function generateCandleData(mainCandles, fiveMinCandles) {
-  if (fiveMinCandles && fiveMinCandles.length > 0) {
-    return fiveMinCandles
+/**
+ * 시뮬레이션용 캔들 데이터 생성
+ * 
+ * 타임프레임에 따라 적절한 세밀도의 캔들 데이터 사용:
+ * - 1일봉 → 5분봉 시뮬레이션
+ * - 4시간봉 → 1분봉 시뮬레이션
+ * - 2시간봉 → 1분봉 시뮬레이션
+ * - 1시간봉 → 1분봉 시뮬레이션
+ * - 30분봉 → 1분봉 시뮬레이션
+ */
+function generateSimulationCandles(mainCandles, simulationCandles) {
+  if (simulationCandles && simulationCandles.length > 0) {
+    return simulationCandles
   }
   return []
+}
+
+// @deprecated - generateCandleData는 generateSimulationCandles로 대체됨
+function generateCandleData(mainCandles, simCandlesCandles) {
+  return generateSimulationCandles(mainCandles, simCandlesCandles)
 }
 
 // ===== 지표 계산 함수들 =====
@@ -536,16 +551,16 @@ function calculateMinMax(values) {
 }
 
 function runTradingSimulation(
-  twoHourCandles,
-  fiveMinCandles,
+  mainCandles,
+  simulationCandles,
   config,
   cachedIndicatorValues,
   initialPosition = 'cash'
 ) {
   const trades = []
-  const fiveMin = generateCandleData(twoHourCandles, fiveMinCandles)
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
   
-  if (fiveMin.length === 0) {
+  if (simCandles.length === 0) {
     return {
       totalReturn: 0,
       tradeCount: 0,
@@ -562,7 +577,7 @@ function runTradingSimulation(
   
   // 코인 보유로 시작하는 경우
   if (initialPosition === 'coin') {
-    const firstPrice = fiveMin[0].close
+    const firstPrice = simCandles[0].close
     holdings = balance / firstPrice
     balance = 0
     buyPrice = firstPrice
@@ -572,9 +587,9 @@ function runTradingSimulation(
 
   const startIndex = Math.max(config.buyConditionCount, config.sellConditionCount)
 
-  for (let i = startIndex; i < fiveMin.length; i++) {
+  for (let i = startIndex; i < simCandles.length; i++) {
     const indicatorValue = indicatorValues[i]
-    const currentPrice = fiveMin[i].close
+    const currentPrice = simCandles[i].close
 
     // 매수 비교 범위 체크
     if (position === 0 && i >= config.buyConditionCount) {
@@ -589,7 +604,7 @@ function runTradingSimulation(
         balance = 0
         position = 1
         trades.push({ 
-          timestamp: fiveMin[i].timestamp, 
+          timestamp: simCandles[i].timestamp, 
           action: 'buy', 
           price: currentPrice, 
           minValue: min, 
@@ -610,7 +625,7 @@ function runTradingSimulation(
         holdings = 0
         position = 0
         trades.push({ 
-          timestamp: fiveMin[i].timestamp, 
+          timestamp: simCandles[i].timestamp, 
           action: 'sell', 
           price: currentPrice, 
           maxValue: max, 
@@ -620,7 +635,7 @@ function runTradingSimulation(
     }
   }
 
-  const finalPrice = fiveMin[fiveMin.length - 1].close
+  const finalPrice = simCandles[simCandles.length - 1].close
   if (position === 1) {
     balance = holdings * finalPrice
     holdings = 0
@@ -637,8 +652,8 @@ function runTradingSimulation(
 }
 
 function runGridSimulation(
-  twoHourCandles,
-  fiveMinCandles,
+  mainCandles,
+  simulationCandles,
   buyConditionCount,
   sellConditionCount,
   buyThresholdMin,
@@ -682,9 +697,9 @@ function runGridSimulation(
     message: '데이터 준비 중...'
   })
   
-  const fiveMin = generateCandleData(twoHourCandles, fiveMinCandles)
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
   
-  if (fiveMin.length === 0) {
+  if (simCandles.length === 0) {
     self.postMessage({
       type: 'ERROR',
       error: '5분봉 데이터가 없습니다.'
@@ -700,7 +715,7 @@ function runGridSimulation(
     message: '전체 지표 데이터 계산 중...'
   })
   
-  const indicatorArrays = calculateAllIndicatorArrays(fiveMin, indicators)
+  const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)
   
   // 2단계: 각 시점의 Z-Score 기반 Ranking Value 계산 (슬라이딩 윈도우)
   // 각 시점마다 이전 LOOKBACK_WINDOW(1000개) 데이터로 평균/표준편차 계산
@@ -711,7 +726,7 @@ function runGridSimulation(
   })
   
   const cachedIndicatorValues = []
-  for (let i = 0; i < fiveMin.length; i++) {
+  for (let i = 0; i < simCandles.length; i++) {
     const rankingValue = calculateRankingValueZScoreSliding(i, indicatorArrays, indicators)
     cachedIndicatorValues.push(rankingValue)
   }
@@ -738,8 +753,8 @@ function runGridSimulation(
       }
       
       const result = runTradingSimulation(
-        twoHourCandles,
-        fiveMin,
+        mainCandles,
+        simulationCandles,
         config,
         cachedIndicatorValues,
         initialPosition
@@ -779,8 +794,8 @@ function runGridSimulation(
  * 상세 거래 내역 생성
  */
 function runDetailedSimulation(
-  twoHourCandles,
-  fiveMinCandles,
+  mainCandles,
+  simulationCandles,
   buyConditionCount,
   sellConditionCount,
   buyThreshold,
@@ -790,9 +805,9 @@ function runDetailedSimulation(
   baseDate = null,
   period = null
 ) {
-  const fiveMin = generateCandleData(twoHourCandles, fiveMinCandles)
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
   
-  if (fiveMin.length === 0) {
+  if (simCandles.length === 0) {
     return []
   }
 
@@ -812,7 +827,7 @@ function runDetailedSimulation(
   let buyPrice = 0
   
   // 분석 시작 시점의 가격과 인덱스 찾기
-  let analysisStartPrice = fiveMin[0].close
+  let analysisStartPrice = simCandles[0].close
   let analysisStartTimestamp = 0
   let analysisStartIndex = 0
   
@@ -829,16 +844,16 @@ function runDetailedSimulation(
     analysisStartTimestamp = baseDateObj.getTime() - (periodDays * 24 * 60 * 60 * 1000)
     
     // 분석 시작 시점에 가장 가까운 캔들 찾기
-    for (let i = 0; i < fiveMin.length; i++) {
-      if (fiveMin[i].timestamp >= analysisStartTimestamp) {
-        analysisStartPrice = fiveMin[i].close
+    for (let i = 0; i < simCandles.length; i++) {
+      if (simCandles[i].timestamp >= analysisStartTimestamp) {
+        analysisStartPrice = simCandles[i].close
         analysisStartIndex = i
         break
       }
     }
   }
   
-  const firstPrice = fiveMin[0].close
+  const firstPrice = simCandles[0].close
   
   // 홀드 수익률 계산용 기준 가격
   // - 초기 포지션이 코인이면: 시뮬레이션 시작 시점 가격
@@ -854,17 +869,17 @@ function runDetailedSimulation(
   }
 
   // Z-Score 기반 지표 값 계산 (슬라이딩 윈도우 방식) ⭐
-  const indicatorArrays = calculateAllIndicatorArrays(fiveMin, indicators)
+  const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)
   
   const indicatorValues = []
-  for (let i = 0; i < fiveMin.length; i++) {
+  for (let i = 0; i < simCandles.length; i++) {
     const rankingValue = calculateRankingValueZScoreSliding(i, indicatorArrays, indicators)
     indicatorValues.push(rankingValue)
   }
 
   // 각 5분 캔들마다 순회
-  for (let i = 0; i < fiveMin.length; i++) {
-    const currentCandle = fiveMin[i]
+  for (let i = 0; i < simCandles.length; i++) {
+    const currentCandle = simCandles[i]
     const rankingValue = indicatorValues[i]
 
     let decision = 'hold'
@@ -943,6 +958,6 @@ function runDetailedSimulation(
   return {
     details,
     analysisStartPrice,
-    analysisStartTimestamp: fiveMin[analysisStartIndex]?.timestamp || fiveMin[0].timestamp
+    analysisStartTimestamp: simCandles[analysisStartIndex]?.timestamp || simCandles[0].timestamp
   }
 }
