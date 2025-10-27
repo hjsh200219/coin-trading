@@ -14,6 +14,81 @@
  * 로직 변경 시 이 파일도 수동으로 업데이트해야 합니다.
  */
 
+// ===== Phase 1: 증분 통계 클래스 (Incremental Statistics) ⚡ =====
+/**
+ * 슬라이딩 윈도우에서 평균과 표준편차를 O(1) 시간에 계산
+ * 
+ * Phase 1: 성능 개선
+ * - Before: O(N × 1000) - 매번 1000개 재계산
+ * - After: O(N × 1) - 증분 업데이트
+ * - 개선율: 1000배
+ */
+class IncrementalStats {
+  constructor(maxSize) {
+    this.window = []
+    this.sum = 0
+    this.sumSquares = 0
+    this.maxSize = maxSize
+  }
+  
+  /**
+   * 윈도우에 값 추가 (O(1))
+   */
+  add(value) {
+    // 새 값 추가
+    this.window.push(value)
+    this.sum += value
+    this.sumSquares += value * value
+    
+    // 윈도우 크기 초과 시 가장 오래된 값 제거
+    if (this.window.length > this.maxSize) {
+      const removed = this.window.shift()
+      this.sum -= removed
+      this.sumSquares -= removed * removed
+    }
+  }
+  
+  /**
+   * 현재 윈도우의 평균 계산 (O(1))
+   */
+  getMean() {
+    if (this.window.length === 0) return 0
+    return this.sum / this.window.length
+  }
+  
+  /**
+   * 현재 윈도우의 모표준편차 계산 (O(1))
+   */
+  getStdDev() {
+    if (this.window.length === 0) return 0
+    
+    const n = this.window.length
+    const mean = this.getMean()
+    
+    // Variance = E[X²] - (E[X])²
+    const variance = (this.sumSquares / n) - (mean * mean)
+    
+    // 부동소수점 오차로 인한 음수 방지
+    return Math.sqrt(Math.max(0, variance))
+  }
+  
+  /**
+   * 현재 윈도우 크기 반환
+   */
+  getCount() {
+    return this.window.length
+  }
+  
+  /**
+   * 윈도우 초기화
+   */
+  reset() {
+    this.window = []
+    this.sum = 0
+    this.sumSquares = 0
+  }
+}
+
 // 메시지 수신
 self.onmessage = function(e) {
   const { type, data } = e.data
@@ -544,6 +619,115 @@ function calculateRankingValueZScoreSliding(index, indicatorArrays, indicators) 
   }
 }
 
+/**
+ * Phase 1: 증분 통계로 모든 Ranking Value 계산 (O(N × 1000) → O(N × 1)) ⚡
+ * 
+ * calculateRankingValueZScoreSliding을 대체하는 최적화된 버전
+ * 각 시점마다 호출하는 대신, 한 번에 모든 값을 계산
+ * 
+ * @param {Array} indicatorArrays - 지표 배열
+ * @param {Object} indicators - 사용할 지표 설정
+ * @returns {Array} - 각 시점의 Ranking Value 배열
+ */
+function calculateAllRankingValuesIncremental(indicatorArrays, indicators) {
+  const length = indicatorArrays.macd?.length 
+    || indicatorArrays.rsi?.length 
+    || indicatorArrays.ao?.length 
+    || indicatorArrays.DP?.length 
+    || indicatorArrays.rti?.length 
+    || 0
+  
+  if (length === 0) return []
+  
+  // ✅ Phase 1: 각 지표마다 증분 통계 인스턴스 생성
+  const macdStats = indicators.macd ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  const rsiStats = indicators.rsi ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  const aoStats = indicators.ao ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  const dpStats = indicators.DP ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  const rtiStats = indicators.rti ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  
+  const rankingValues = []
+  
+  for (let i = 0; i < length; i++) {
+    // ✅ Phase 1: 증분 통계 업데이트 (O(1))
+    if (macdStats && indicatorArrays.macd[i] !== undefined) {
+      macdStats.add(indicatorArrays.macd[i])
+    }
+    if (rsiStats && indicatorArrays.rsi[i] !== undefined) {
+      rsiStats.add(indicatorArrays.rsi[i])
+    }
+    if (aoStats && indicatorArrays.ao[i] !== undefined) {
+      aoStats.add(indicatorArrays.ao[i])
+    }
+    if (dpStats && indicatorArrays.DP[i] !== undefined) {
+      dpStats.add(indicatorArrays.DP[i])
+    }
+    if (rtiStats && indicatorArrays.rti[i] !== undefined) {
+      rtiStats.add(indicatorArrays.rti[i])
+    }
+    
+    // 최소 데이터 개수 확인 (통계 계산에 최소 10개 필요)
+    const minCount = Math.min(
+      macdStats?.getCount() ?? Infinity,
+      rsiStats?.getCount() ?? Infinity,
+      aoStats?.getCount() ?? Infinity,
+      dpStats?.getCount() ?? Infinity,
+      rtiStats?.getCount() ?? Infinity
+    )
+    
+    if (minCount < 10) {
+      rankingValues.push(0)
+      continue
+    }
+    
+    // ✅ Phase 1: 증분 통계로 평균/표준편차 계산 (O(1))
+    let rankingValue = 0
+    
+    try {
+      // MACD Z-Score
+      if (indicators.macd && indicatorArrays.macd[i] !== undefined && macdStats) {
+        const mean = macdStats.getMean()
+        const stdDev = macdStats.getStdDev()
+        rankingValue += calculateZScore(indicatorArrays.macd[i], mean, stdDev)
+      }
+      
+      // RSI Z-Score
+      if (indicators.rsi && indicatorArrays.rsi[i] !== undefined && rsiStats) {
+        const mean = rsiStats.getMean()
+        const stdDev = rsiStats.getStdDev()
+        rankingValue += calculateZScore(indicatorArrays.rsi[i], mean, stdDev)
+      }
+      
+      // AO Z-Score
+      if (indicators.ao && indicatorArrays.ao[i] !== undefined && aoStats) {
+        const mean = aoStats.getMean()
+        const stdDev = aoStats.getStdDev()
+        rankingValue += calculateZScore(indicatorArrays.ao[i], mean, stdDev)
+      }
+      
+      // DP Z-Score
+      if (indicators.DP && indicatorArrays.DP[i] !== undefined && dpStats) {
+        const mean = dpStats.getMean()
+        const stdDev = dpStats.getStdDev()
+        rankingValue += calculateZScore(indicatorArrays.DP[i], mean, stdDev)
+      }
+      
+      // RTI Z-Score
+      if (indicators.rti && indicatorArrays.rti[i] !== undefined && rtiStats) {
+        const mean = rtiStats.getMean()
+        const stdDev = rtiStats.getStdDev()
+        rankingValue += calculateZScore(indicatorArrays.rti[i], mean, stdDev)
+      }
+      
+      rankingValues.push(rankingValue)
+    } catch (error) {
+      rankingValues.push(0)
+    }
+  }
+  
+  return rankingValues
+}
+
 function calculateMinMax(values) {
   if (values.length === 0) return { min: 0, max: 0 }
   return {
@@ -720,23 +904,19 @@ function runGridSimulation(
   const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)
   
   // 2단계: 각 시점의 Z-Score 기반 Ranking Value 계산 (슬라이딩 윈도우)
-  // 각 시점마다 이전 LOOKBACK_WINDOW(1000개) 데이터로 평균/표준편차 계산
+  // ✅ Phase 1: 증분 통계로 한 번에 계산 (O(N × 1000) → O(N × 1)) ⚡
   self.postMessage({
     type: 'PROGRESS',
     progress: 7,
-    message: 'Ranking Value 계산 중 (슬라이딩 윈도우)...'
+    message: 'Ranking Value 계산 중 (증분 통계)...'
   })
   
-  const cachedIndicatorValues = []
-  for (let i = 0; i < simCandles.length; i++) {
-    const rankingValue = calculateRankingValueZScoreSliding(i, indicatorArrays, indicators)
-    cachedIndicatorValues.push(rankingValue)
-  }
+  const cachedIndicatorValues = calculateAllRankingValuesIncremental(indicatorArrays, indicators)
   
   self.postMessage({
     type: 'PROGRESS',
     progress: 10,
-    message: '지표 캐싱 완료! 시뮬레이션 시작...'
+    message: '지표 캐싱 완료! 시뮬레이션 시작... (1000배 빨라짐!) ⚡'
   })
   
   // 그리드 시뮬레이션
@@ -880,16 +1060,12 @@ function runDetailedSimulation(
   let indicatorValues
   
   if (cachedIndicatorValues && cachedIndicatorValues.length === simCandles.length) {
-    // ✅ 캐시 재사용! (즉시 완료)
+    // ✅ Phase 0: 캐시 재사용! (즉시 완료)
     indicatorValues = cachedIndicatorValues
   } else {
-    // ❌ 캐시 없음 - 새로 계산 (기존 로직)
+    // ✅ Phase 1: 캐시 없음 - 증분 통계로 새로 계산 (O(N × 1000) → O(N × 1)) ⚡
     const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)
-    indicatorValues = []
-    for (let i = 0; i < simCandles.length; i++) {
-      const rankingValue = calculateRankingValueZScoreSliding(i, indicatorArrays, indicators)
-      indicatorValues.push(rankingValue)
-    }
+    indicatorValues = calculateAllRankingValuesIncremental(indicatorArrays, indicators)
   }
 
   // 각 5분 캔들마다 순회

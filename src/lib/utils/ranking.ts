@@ -10,6 +10,7 @@ import {
   calculateRTI,
 } from '@/lib/indicators/calculator'
 import { LOOKBACK_WINDOW, SIMULATION_TIMEFRAME_MAP, SIMULATION_MULTIPLIER_MAP } from '@/lib/simulation/constants'
+import { IncrementalStats } from '@/lib/utils/incrementalStats'
 
 /**
  * 평균 계산
@@ -114,14 +115,32 @@ export function calculateRankingValues(
     : null
   const rtiValues = rtiResult ? rtiResult.rti.slice(rtiResult.rti.length - minLength) : null
 
-  // ⭐ 슬라이딩 윈도우 방식으로 Z-score 계산 및 랭킹 값 생성
+  // ⭐ Phase 1: 증분 통계로 슬라이딩 윈도우 Z-score 계산 (O(N × 1000) → O(N × 1)) ⚡
+  // 각 지표마다 IncrementalStats 인스턴스 생성
+  const macdStats = macdValues ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  const rsiStats = rsiValues ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  const aoStats = aoValues ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  const dpStats = DPValues ? new IncrementalStats(LOOKBACK_WINDOW) : null
+  const rtiStats = rtiValues ? new IncrementalStats(LOOKBACK_WINDOW) : null
+
   const rankings: RankingDataPoint[] = alignedCandles.map((candle, i) => {
-    // 현재 시점의 이전 LOOKBACK_WINDOW개 데이터로 통계 계산
-    const windowStart = Math.max(0, i - LOOKBACK_WINDOW)
-    const windowSize = i - windowStart // 실제 윈도우 크기 (처음에는 1000개보다 작을 수 있음)
+    // ✅ Phase 1: 증분 통계 업데이트 (O(1))
+    if (macdStats && macdValues) macdStats.add(macdValues[i])
+    if (rsiStats && rsiValues) rsiStats.add(rsiValues[i])
+    if (aoStats && aoValues) aoStats.add(aoValues[i])
+    if (dpStats && DPValues) dpStats.add(DPValues[i])
+    if (rtiStats && rtiValues) rtiStats.add(rtiValues[i])
 
     // 최소 데이터 개수 확인 (통계 계산에 최소 10개 필요)
-    if (windowSize < 10) {
+    const minCount = Math.min(
+      macdStats?.getCount() ?? Infinity,
+      rsiStats?.getCount() ?? Infinity,
+      aoStats?.getCount() ?? Infinity,
+      dpStats?.getCount() ?? Infinity,
+      rtiStats?.getCount() ?? Infinity
+    )
+
+    if (minCount < 10) {
       return {
         timestamp: candle.timestamp,
         macd: macdValues ? macdValues[i] : null,
@@ -133,27 +152,21 @@ export function calculateRankingValues(
       }
     }
 
-    // 각 지표의 슬라이딩 윈도우 데이터로 평균/표준편차 계산
-    const macdWindow = macdValues ? macdValues.slice(windowStart, i) : null
-    const rsiWindow = rsiValues ? rsiValues.slice(windowStart, i) : null
-    const aoWindow = aoValues ? aoValues.slice(windowStart, i) : null
-    const DPWindow = DPValues ? DPValues.slice(windowStart, i) : null
-    const rtiWindow = rtiValues ? rtiValues.slice(windowStart, i) : null
+    // ✅ Phase 1: 증분 통계로 평균/표준편차 계산 (O(1))
+    const macdAvg = macdStats?.getMean() ?? 0
+    const macdStd = macdStats?.getStdDev() ?? 1
 
-    const macdAvg = macdWindow ? calculateAverage(macdWindow) : 0
-    const macdStd = macdWindow ? calculateStdDevP(macdWindow) : 1
+    const rsiAvg = rsiStats?.getMean() ?? 0
+    const rsiStd = rsiStats?.getStdDev() ?? 1
 
-    const rsiAvg = rsiWindow ? calculateAverage(rsiWindow) : 0
-    const rsiStd = rsiWindow ? calculateStdDevP(rsiWindow) : 1
+    const aoAvg = aoStats?.getMean() ?? 0
+    const aoStd = aoStats?.getStdDev() ?? 1
 
-    const aoAvg = aoWindow ? calculateAverage(aoWindow) : 0
-    const aoStd = aoWindow ? calculateStdDevP(aoWindow) : 1
+    const DPAvg = dpStats?.getMean() ?? 0
+    const DPStd = dpStats?.getStdDev() ?? 1
 
-    const DPAvg = DPWindow ? calculateAverage(DPWindow) : 0
-    const DPStd = DPWindow ? calculateStdDevP(DPWindow) : 1
-
-    const rtiAvg = rtiWindow ? calculateAverage(rtiWindow) : 0
-    const rtiStd = rtiWindow ? calculateStdDevP(rtiWindow) : 1
+    const rtiAvg = rtiStats?.getMean() ?? 0
+    const rtiStd = rtiStats?.getStdDev() ?? 1
 
     // 현재 시점의 Z-Score 계산
     let rankingValue = 0
