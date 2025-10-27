@@ -1,8 +1,13 @@
 # Simulation Performance Improvement PRD
 
-**문서 버전:** 1.0  
+**문서 버전:** 1.1  
 **작성일:** 2025-10-27  
+**최종 수정:** 2025-10-27  
 **상태:** Draft
+
+**변경 이력:**
+- v1.1 (2025-10-27): Phase 0 추가 - Detail Simulation 캐시 공유로 50배 개선
+- v1.0 (2025-10-27): 초기 문서 작성
 
 ---
 
@@ -108,6 +113,83 @@ const indicatorArrays = {
 // - 약 20MB 메모리 사용 (1개 시뮬레이션 기준)
 ```
 
+**D. 상세결과(Detail) 성능 문제 - 캐시 미활용** ⚠️ **중요 발견!**
+
+Grid Simulation과 Detail Simulation의 로직을 분석한 결과, **동일한 계산을 중복으로 수행**하고 있음을 발견했습니다.
+
+```typescript
+// ❌ 현재: Detail은 Grid의 결과를 재사용하지 않음
+
+// Grid Simulation (빠름)
+const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)  // 1회 계산
+const cachedIndicatorValues = []
+for (let i = 0; i < simCandles.length; i++) {
+  cachedIndicatorValues.push(calculateRankingValueZScoreSliding(...))  // 캐시 저장
+}
+
+// 40,401개 조합에서 캐시 재사용 ✅
+for (buyThreshold...) {
+  for (sellThreshold...) {
+    runTradingSimulation(..., cachedIndicatorValues)  // 캐시 재사용!
+  }
+}
+
+// Detail Simulation (느림) - 사용자가 셀 클릭할 때마다 실행
+// ❌ 데이터 재로드 (10~20초)
+const mainCandles = await fetch(`/api/.../candles/...`)
+const simulationCandles = await fetchMultipleSimulationCandles(...)
+
+// ❌ 지표 재계산 (2~3초)
+const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)  // 또 계산
+const indicatorValues = []
+for (let i = 0; i < simCandles.length; i++) {
+  indicatorValues.push(calculateRankingValueZScoreSliding(...))  // 또 계산
+}
+
+// ❌ 1회 사용 후 버림
+runDetailedSimulation(..., indicatorValues)
+```
+
+**문제점:**
+1. ❌ **데이터 중복 로드**: Grid에서 이미 로드한 데이터를 Detail에서 다시 로드 (10~20초 낭비)
+2. ❌ **지표 중복 계산**: Grid에서 이미 계산한 지표를 Detail에서 다시 계산 (2~3초 낭비)
+3. ❌ **캐시 미공유**: Grid의 `cachedIndicatorValues`를 Detail이 재사용하지 않음
+4. ⚠️ **로직은 동일**: Ranking Value 계산 로직은 100% 동일하므로 결과도 동일
+
+**실제 영향:**
+```
+Grid Simulation 완료 후 Detail 클릭 시:
+- 현재: 15~25초 소요 (데이터 재로드 + 지표 재계산)
+- 개선 시: 0.5초 이하 (캐시 재사용)
+→ 50배 개선 가능! ⚡
+```
+
+**증거:**
+```javascript
+// simulation-worker.js
+
+// Grid: Line 718-738
+const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)
+const cachedIndicatorValues = []
+for (let i = 0; i < simCandles.length; i++) {
+  cachedIndicatorValues.push(calculateRankingValueZScoreSliding(i, indicatorArrays, indicators))
+}
+// → 40,401개 조합에 재사용 ✅
+
+// Detail: Line 872-878
+const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)
+const indicatorValues = []
+for (let i = 0; i < simCandles.length; i++) {
+  indicatorValues.push(calculateRankingValueZScoreSliding(i, indicatorArrays, indicators))
+}
+// → 1회 사용 후 버림 ❌
+
+// 사용하는 함수는 완전히 동일!
+// - calculateAllIndicatorArrays() - 동일
+// - calculateRankingValueZScoreSliding() - 동일
+// - 결과값도 100% 동일
+```
+
 #### 3. 사용자 경험 문제
 
 - ❌ 5~10분 대기 후 한 번에 결과 표시
@@ -118,6 +200,185 @@ const indicatorArrays = {
 ---
 
 ## 💡 해결 방안 (Solution)
+
+### Phase 0: Detail Simulation 캐시 공유 (우선순위: 최우선) 🔥
+
+**목표:** Grid Simulation의 계산 결과를 Detail Simulation에서 재사용하여 **즉시 상세결과 표시**
+
+#### 0.1 문제 현황
+
+```typescript
+// ❌ 현재: Grid와 Detail이 독립적으로 실행
+Grid 완료 (1분) → 사용자가 셀 클릭 → Detail 시작 (15~25초 대기) → 결과 표시
+                                    ↑
+                                데이터 재로드 + 지표 재계산
+```
+
+#### 0.2 개선 방안
+
+**A. UI 레벨: Grid 데이터 캐시 저장**
+
+```typescript
+// TradingSimulationContent.tsx
+
+// 1. Grid 데이터 캐시 State 추가
+const [gridDataCache, setGridDataCache] = useState<{
+  mainCandles: Candle[]
+  simulationCandles: Candle[]
+  cachedIndicatorValues: number[]
+  config: {
+    indicators: IndicatorConfig
+    buyConditionCount: number
+    sellConditionCount: number
+    initialPosition: 'cash' | 'coin'
+    baseDate: string
+    period: Period
+  }
+} | null>(null)
+
+// 2. Grid 완료 시 캐시 저장
+const setupWorkerHandlers = (worker: Worker) => {
+  worker.onmessage = (e) => {
+    const { type, results, cachedIndicatorValues } = e.data
+    
+    if (type === 'COMPLETE') {
+      // ✅ Worker에서 cachedIndicatorValues 받아서 저장
+      setGridDataCache({
+        mainCandles,
+        simulationCandles,
+        cachedIndicatorValues,  // ⚡ 캐시 저장!
+        config: {
+          indicators,
+          buyConditionCount,
+          sellConditionCount,
+          initialPosition,
+          baseDate,
+          period
+        }
+      })
+      
+      setResults(results)
+      // ...
+    }
+  }
+}
+
+// 3. Detail 클릭 시 캐시 확인
+const handleCellClick = async (buyThreshold, sellThreshold) => {
+  const cacheKey = `${buyThreshold}-${sellThreshold}`
+  
+  // 메모리 캐시 확인 (기존)
+  if (detailsCache.has(cacheKey)) {
+    // 즉시 표시
+    return
+  }
+  
+  // ✅ Grid 데이터 캐시 확인 (신규)
+  if (gridDataCache) {
+    // 데이터 재로드 없이 즉시 Worker에 전송!
+    workerRef.current.postMessage({
+      type: 'GET_DETAIL',
+      data: {
+        mainCandles: gridDataCache.mainCandles,           // ⚡ 캐시 재사용
+        simulationCandles: gridDataCache.simulationCandles, // ⚡ 캐시 재사용
+        cachedIndicatorValues: gridDataCache.cachedIndicatorValues, // ⚡ 캐시 재사용
+        buyConditionCount: gridDataCache.config.buyConditionCount,
+        sellConditionCount: gridDataCache.config.sellConditionCount,
+        buyThreshold,
+        sellThreshold,
+        indicators: gridDataCache.config.indicators,
+        initialPosition: gridDataCache.config.initialPosition,
+        baseDate: gridDataCache.config.baseDate,
+        period: gridDataCache.config.period
+      }
+    })
+    
+    // 로딩 표시 (하지만 즉시 완료됨)
+    setIsDetailLoading(true)
+    return
+  }
+  
+  // 캐시 없으면 기존 로직 (데이터 재로드)
+  // ...
+}
+```
+
+**B. Worker 레벨: 캐시 파라미터 추가**
+
+```javascript
+// simulation-worker.js
+
+// Grid 완료 시 cachedIndicatorValues 반환
+function runGridSimulation(...) {
+  // ... 기존 로직 ...
+  
+  // 완료 시 캐시도 함께 전송
+  self.postMessage({
+    type: 'COMPLETE',
+    results: results,
+    buyThresholds: buyThresholds,
+    sellThresholds: sellThresholds,
+    cachedIndicatorValues: cachedIndicatorValues  // ⚡ 캐시 전송!
+  })
+}
+
+// Detail 실행 시 cachedIndicatorValues 파라미터 추가
+function runDetailedSimulation(
+  mainCandles,
+  simulationCandles,
+  buyConditionCount,
+  sellConditionCount,
+  buyThreshold,
+  sellThreshold,
+  indicators,
+  initialPosition = 'cash',
+  baseDate = null,
+  period = null,
+  cachedIndicatorValues = null  // ⚡ 캐시 파라미터 추가!
+) {
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
+  
+  // ✅ 캐시가 있으면 즉시 사용!
+  const indicatorValues = cachedIndicatorValues || (() => {
+    // 캐시 없으면 계산 (기존 로직)
+    const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)
+    const values = []
+    for (let i = 0; i < simCandles.length; i++) {
+      values.push(calculateRankingValueZScoreSliding(i, indicatorArrays, indicators))
+    }
+    return values
+  })()
+  
+  // ... 나머지 로직 동일 ...
+}
+```
+
+#### 0.3 효과
+
+```
+Before (현재):
+Grid 완료 → 셀 클릭 → [데이터 로드 10~20초] → [지표 계산 2~3초] → 결과 표시
+총 시간: 15~25초
+
+After (캐시 공유):
+Grid 완료 → 셀 클릭 → [캐시 재사용 0.1초] → 결과 표시
+총 시간: 0.5초 이하 ⚡
+
+개선율: 50배 빠름!
+```
+
+**추가 이점:**
+- ✅ **네트워크 요청 0회**: API 호출 없음
+- ✅ **CPU 연산 최소화**: 지표 재계산 없음
+- ✅ **메모리 효율**: 이미 로드된 데이터 재사용
+- ✅ **즉각 반응**: 사용자가 여러 셀을 빠르게 탐색 가능
+
+**구현 난이도:**
+- 🟢 **낮음**: 기존 캐싱 로직 활용 (detailsCache와 유사)
+- 🟢 **영향 범위 작음**: UI와 Worker 파라미터만 수정
+- 🟢 **테스트 용이**: 결과는 100% 동일해야 함
+
+---
 
 ### Phase 1: 통계 계산 최적화 (우선순위: 높음)
 
@@ -422,6 +683,37 @@ class LazyIndicator {
 
 ## 🏗️ 구현 계획
 
+### Phase 0: Detail 캐시 공유 (3일) 🔥 **최우선!**
+
+**Day 1:**
+- [ ] Worker: `runGridSimulation`에서 `cachedIndicatorValues` 반환 추가
+- [ ] Worker: `runDetailedSimulation`에 `cachedIndicatorValues` 파라미터 추가
+- [ ] Worker: 캐시가 있으면 재사용, 없으면 계산하는 로직
+
+**Day 2:**
+- [ ] UI: `gridDataCache` State 추가
+- [ ] UI: Grid 완료 시 캐시 저장 로직
+- [ ] UI: Detail 클릭 시 캐시 확인 및 재사용 로직
+- [ ] 기존 로직과 호환성 유지 (캐시 없으면 기존 방식)
+
+**Day 3:**
+- [ ] 테스트: 캐시 사용 시 결과가 기존과 동일한지 검증
+- [ ] 성능 측정: 15~25초 → 0.5초 확인
+- [ ] 에러 처리: 캐시 무효화 조건 처리
+- [ ] 문서 업데이트
+
+**검증:**
+- Detail 클릭 시 즉시 (0.5초 이하) 결과 표시
+- 캐시 사용 시와 미사용 시 결과 100% 일치
+- 설정 변경 시 캐시 무효화 확인
+
+**효과:**
+- ⚡ Detail 속도: **50배 개선** (15~25초 → 0.5초)
+- 🎯 **체감 속도 극대화**: Grid 완료 후 즉시 탐색 가능
+- 💰 **비용 대비 효과 최고**: 3일 작업으로 50배 개선
+
+---
+
 ### Phase 1: 증분 통계 (1주)
 
 **Week 1:**
@@ -547,32 +839,39 @@ After: 80MB (30% 절감)
 
 ### Must Have (필수)
 
-1. ✅ Grid Simulation 실행 시간 **50% 이상 단축**
+1. ✅ **Detail Simulation 즉시 표시** (Phase 0) 🔥
+   - Before: 15~25초 (데이터 재로드 + 지표 재계산)
+   - After: 0.5초 이하 (캐시 재사용)
+   - 개선율: **50배**
+
+2. ✅ Grid Simulation 실행 시간 **50% 이상 단축**
    - Before: 5~10분
    - After: 2~5분
 
-2. ✅ 기존 결과와 **100% 일치**
+3. ✅ 기존 결과와 **100% 일치**
    - 동일한 입력 → 동일한 출력
    - 단위 테스트로 검증
+   - 캐시 사용 시에도 동일한 결과
 
-3. ✅ 안정성 유지
+4. ✅ 안정성 유지
    - 에러율 0%
    - 모든 브라우저에서 정상 작동
+   - 캐시 무효화 정상 작동
 
 ### Should Have (권장)
 
-4. ✅ 실시간 Best Result 표시
+5. ✅ 실시간 Best Result 표시
    - 배치마다 업데이트
    - 사용자 체감 속도 향상
 
-5. ✅ 메모리 사용량 **30% 절감**
+6. ✅ 메모리 사용량 **30% 절감**
    - Before: 120MB
    - After: 80MB
 
 ### Nice to Have (선택)
 
-6. ⭕ 히트맵 점진적 렌더링
-7. ⭕ 취소 후 이어서 실행 기능
+7. ⭕ 히트맵 점진적 렌더링
+8. ⭕ 취소 후 이어서 실행 기능
 
 ---
 
