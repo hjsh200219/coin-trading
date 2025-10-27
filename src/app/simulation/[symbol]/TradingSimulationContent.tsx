@@ -90,6 +90,23 @@ export default function TradingSimulationContent({
   } | null>(null)
   const [detailsCache, setDetailsCache] = useState<Map<string, DetailResponse>>(new Map())
   
+  // Phase 0: Grid 데이터 캐시 (Detail에서 재사용) ⚡
+  const [gridDataCache, setGridDataCache] = useState<{
+    mainCandles: Candle[]
+    simulationCandles: Candle[]
+    cachedIndicatorValues: number[]
+    config: {
+      indicators: IndicatorConfig
+      buyConditionCount: number
+      sellConditionCount: number
+      initialPosition: 'cash' | 'coin'
+      baseDate: string
+      period: Period
+      timeFrame: TimeFrame
+      exchange: Exchange
+    }
+  } | null>(null)
+  
   // 모달 로딩 상태
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailLoadingProgress, setDetailLoadingProgress] = useState(0)
@@ -101,6 +118,22 @@ export default function TradingSimulationContent({
   // Web Worker 참조
   const workerRef = useRef<Worker | null>(null)
   const cancelRef = useRef(false)
+  
+  // Phase 0: 현재 시뮬레이션 컨텍스트 (Grid 완료 시 캐시 저장용) ⚡
+  const currentSimulationContextRef = useRef<{
+    mainCandles: Candle[]
+    simulationCandles: Candle[]
+    config: {
+      indicators: IndicatorConfig
+      buyConditionCount: number
+      sellConditionCount: number
+      initialPosition: 'cash' | 'coin'
+      baseDate: string
+      period: Period
+      timeFrame: TimeFrame
+      exchange: Exchange
+    }
+  } | null>(null)
 
   // localStorage에 설정 저장
   useEffect(() => {
@@ -163,6 +196,28 @@ export default function TradingSimulationContent({
     localStorage.setItem(getStorageKey('initialPosition'), JSON.stringify(initialPosition))
   }, [initialPosition, getStorageKey])
 
+  // Phase 0: 설정 변경 시 gridDataCache 무효화 ⚡
+  useEffect(() => {
+    if (gridDataCache) {
+      const config = gridDataCache.config
+      const isConfigChanged = 
+        config.baseDate !== baseDate ||
+        config.period !== period ||
+        config.timeFrame !== timeFrame ||
+        config.exchange !== exchange ||
+        config.buyConditionCount !== buyConditionCount ||
+        config.sellConditionCount !== sellConditionCount ||
+        config.initialPosition !== initialPosition ||
+        JSON.stringify(config.indicators) !== JSON.stringify(indicators)
+      
+      if (isConfigChanged) {
+        console.log('⚠️ Phase 0: 설정 변경으로 Grid 캐시 무효화')
+        setGridDataCache(null)
+        setDetailsCache(new Map()) // 상세 결과 캐시도 무효화
+      }
+    }
+  }, [baseDate, period, timeFrame, exchange, buyConditionCount, sellConditionCount, initialPosition, indicators, gridDataCache])
+
   // ESC 키로 모달 닫기 및 필터 초기화
   useEffect(() => {
     if (!isDetailModalOpen) {
@@ -184,7 +239,7 @@ export default function TradingSimulationContent({
   // Worker 메시지 핸들러 설정
   const setupWorkerHandlers = (worker: Worker) => {
     worker.onmessage = (e) => {
-      const { type, progress, message, results, buyThresholds: workerBuyThresholds, sellThresholds: workerSellThresholds, error } = e.data
+      const { type, progress, message, results, buyThresholds: workerBuyThresholds, sellThresholds: workerSellThresholds, cachedIndicatorValues, error } = e.data
       
       switch (type) {
         case 'PROGRESS':
@@ -213,6 +268,21 @@ export default function TradingSimulationContent({
             if (workerBuyThresholds && workerSellThresholds) {
               setBuyThresholds(workerBuyThresholds)
               setSellThresholds(workerSellThresholds)
+            }
+            
+            // Phase 0: Grid 캐시 저장 (Detail에서 즉시 재사용) ⚡
+            if (cachedIndicatorValues && currentSimulationContextRef.current) {
+              setGridDataCache({
+                mainCandles: currentSimulationContextRef.current.mainCandles,
+                simulationCandles: currentSimulationContextRef.current.simulationCandles,
+                cachedIndicatorValues: cachedIndicatorValues,
+                config: currentSimulationContextRef.current.config
+              })
+              console.log('✅ Phase 0: Grid 캐시 저장 완료 (Detail 50배 개선!)', {
+                indicatorValuesCount: cachedIndicatorValues.length,
+                mainCandlesCount: currentSimulationContextRef.current.mainCandles.length,
+                simulationCandlesCount: currentSimulationContextRef.current.simulationCandles.length
+              })
             }
           }
           setIsSimulating(false)
@@ -408,6 +478,26 @@ export default function TradingSimulationContent({
       const isSimulationDataAvailable = simulationCandleData.length > 0
       setUsing5Min(isSimulationDataAvailable)
 
+      // Phase 0: 시뮬레이션 컨텍스트 저장 (Grid 완료 시 캐시용) ⚡
+      // volume 추가 (Worker는 사용하지 않지만 Candle 타입 호환성을 위해)
+      const mainCandlesWithVolume = mainCandles.map(c => ({ ...c, volume: 0 }))
+      const simulationCandlesWithVolume = (simulationCandleData.length > 0 ? simulationCandleData : mainCandles).map(c => ({ ...c, volume: 0 }))
+      
+      currentSimulationContextRef.current = {
+        mainCandles: mainCandlesWithVolume,
+        simulationCandles: simulationCandlesWithVolume,
+        config: {
+          indicators,
+          buyConditionCount,
+          sellConditionCount,
+          initialPosition,
+          baseDate,
+          period,
+          timeFrame,
+          exchange
+        }
+      }
+
       // 4. Web Worker에 시뮬레이션 작업 전달 ⚡
       if (workerRef.current) {
         workerRef.current.postMessage({
@@ -499,7 +589,7 @@ export default function TradingSimulationContent({
   const handleCellClick = async (buyThreshold: number, sellThreshold: number) => {
     const cacheKey = `${buyThreshold}-${sellThreshold}`
     
-    // 캐시에 있으면 바로 표시
+    // 1순위: detailsCache 확인 (결과 캐시)
     if (detailsCache.has(cacheKey)) {
       const cached = detailsCache.get(cacheKey)!
       setSelectedDetail({
@@ -520,6 +610,86 @@ export default function TradingSimulationContent({
       return
     }
 
+    // 2순위: Phase 0 - gridDataCache 확인 (데이터 캐시) ⚡
+    if (gridDataCache && 
+        gridDataCache.config.baseDate === baseDate &&
+        gridDataCache.config.period === period &&
+        gridDataCache.config.timeFrame === timeFrame &&
+        gridDataCache.config.exchange === exchange &&
+        gridDataCache.config.buyConditionCount === buyConditionCount &&
+        gridDataCache.config.sellConditionCount === sellConditionCount &&
+        gridDataCache.config.initialPosition === initialPosition) {
+      
+      console.log('⚡ Phase 0: Grid 캐시 재사용! (15~25초 → 즉시)')
+      
+      // 로딩 시작 (하지만 즉시 완료됨)
+      setIsDetailLoading(true)
+      setDetailLoadingProgress(90)
+      setDetailLoadingMessage('캐시된 데이터로 상세 내역 생성 중... (즉시 완료!)')
+      
+      // 일회성 메시지 핸들러 설정
+      const handleDetailMessage = (e: MessageEvent) => {
+        const { type, details, analysisStartPrice, analysisStartTimestamp, error } = e.data
+
+        if (type === 'DETAIL_COMPLETE') {
+          const response: DetailResponse = {
+            details,
+            analysisStartPrice,
+            analysisStartTimestamp
+          }
+          
+          // 캐시에 저장
+          const newCache = new Map(detailsCache)
+          newCache.set(cacheKey, response)
+          setDetailsCache(newCache)
+
+          // 모달 표시
+          setSelectedDetail({
+            buyThreshold,
+            sellThreshold,
+            details,
+            analysisStartPrice,
+            analysisStartTimestamp,
+            exchange
+          })
+          setIsDetailModalOpen(true)
+          setIsDetailLoading(false)
+
+          // 핸들러 제거
+          workerRef.current?.removeEventListener('message', handleDetailMessage)
+        } else if (type === 'ERROR') {
+          alert(`상세 내역 생성 중 오류가 발생했습니다: ${error}`)
+          setIsDetailLoading(false)
+          workerRef.current?.removeEventListener('message', handleDetailMessage)
+        }
+      }
+
+      workerRef.current.addEventListener('message', handleDetailMessage)
+      
+      // Worker에 캐시 데이터 전송 (데이터 재로드 없음!) ⚡
+      workerRef.current.postMessage({
+        type: 'GET_DETAIL',
+        data: {
+          mainCandles: gridDataCache.mainCandles,
+          simulationCandles: gridDataCache.simulationCandles,
+          buyConditionCount,
+          sellConditionCount,
+          buyThreshold,
+          sellThreshold,
+          indicators: gridDataCache.config.indicators,
+          initialPosition,
+          baseDate,
+          period,
+          cachedIndicatorValues: gridDataCache.cachedIndicatorValues  // ⚡ 캐시 전달!
+        }
+      })
+      
+      return
+    }
+
+    // 3순위: 캐시 없음 - 데이터 재로드 (기존 로직) ❌
+    console.log('❌ 캐시 없음 - 데이터 재로드 (15~25초 소요)')
+    
     // 로딩 시작
     setIsDetailLoading(true)
     setDetailLoadingProgress(0)
