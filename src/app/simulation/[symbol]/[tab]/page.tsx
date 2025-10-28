@@ -18,14 +18,14 @@ export default async function SimulationTabPage({ params }: SimulationTabPagePro
     notFound()
   }
 
-  // 유효하지 않은 탭인 경우 rankingvalue로 redirect
-  if (tab !== 'rankingvalue' && tab !== 'simulation') {
-    redirect(`/simulation/${symbol}/rankingvalue`)
+  // 유효하지 않은 탭인 경우 progressive로 redirect
+  if (tab !== 'progressive' && tab !== 'rankingvalue' && tab !== 'simulation') {
+    redirect(`/simulation/${symbol}/progressive`)
   }
 
   return (
     <AppLayout>
-      <SimulationTabLayout symbol={symbol} initialTab={tab as 'rankingvalue' | 'simulation'} />
+      <SimulationTabLayout symbol={symbol} initialTab={tab as 'progressive' | 'rankingvalue' | 'simulation'} />
     </AppLayout>
   )
 }

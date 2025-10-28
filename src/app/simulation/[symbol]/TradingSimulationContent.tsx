@@ -77,6 +77,7 @@ export default function TradingSimulationContent({
   const [progressMessage, setProgressMessage] = useState<string>('')
   const [decimalPlaces, setDecimalPlaces] = useState<2 | 3>(() => getStoredValue('decimalPlaces', 2))
   const [initialPosition, setInitialPosition] = useState<'cash' | 'coin'>(() => getStoredValue('initialPosition', 'cash'))
+  const [decisionInterval, setDecisionInterval] = useState<1 | 2 | 5>(() => getStoredValue('decisionInterval', 1))
   
   // 상세 내역 모달
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
@@ -195,6 +196,11 @@ export default function TradingSimulationContent({
     if (typeof window === 'undefined') return
     localStorage.setItem(getStorageKey('initialPosition'), JSON.stringify(initialPosition))
   }, [initialPosition, getStorageKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(getStorageKey('decisionInterval'), JSON.stringify(decisionInterval))
+  }, [decisionInterval, getStorageKey])
 
   // Phase 0: 설정 변경 시 gridDataCache 무효화 ⚡
   useEffect(() => {
@@ -500,6 +506,9 @@ export default function TradingSimulationContent({
 
       // 4. Web Worker에 시뮬레이션 작업 전달 ⚡
       if (workerRef.current) {
+        // baseDate를 timestamp로 변환
+        const baseDateTimestamp = new Date(baseDate + 'T23:59:59+09:00').getTime()
+        
         workerRef.current.postMessage({
           type: 'START_SIMULATION',
           data: {
@@ -513,7 +522,9 @@ export default function TradingSimulationContent({
             sellThresholdMax,
             indicators, // 지표 설정 추가 ✨
             decimalPlaces, // 소수점 자릿수 추가 ✨
-            initialPosition // 초기 포지션 추가 ✨
+            initialPosition, // 초기 포지션 추가 ✨
+            baseDate: baseDateTimestamp, // 분석 시작 시간 (timestamp)
+            timeFrame // 메인 타임프레임 (1d, 4h, 2h, 1h, 30m)
           }
         })
       } else {
@@ -832,6 +843,10 @@ export default function TradingSimulationContent({
               onBaseDateChange={setBaseDate}
               onIndicatorToggle={handleIndicatorToggle}
               disabledExchanges={['bithumb']}
+              initialPosition={initialPosition}
+              onInitialPositionChange={setInitialPosition}
+              decisionInterval={decisionInterval}
+              onDecisionIntervalChange={setDecisionInterval}
             />
 
             {/* 3행: 시뮬레이션 설정 */}
@@ -908,33 +923,6 @@ export default function TradingSimulationContent({
                   step={0.1}
                   className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                 />
-              </div>
-
-              {/* 모바일: 초기 포지션 */}
-              <div className="md:hidden flex items-center gap-2 text-xs">
-                <span className="font-medium text-foreground/70 whitespace-nowrap">초기 포지션</span>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setInitialPosition('cash')}
-                    className={`px-3 py-1 rounded transition ${
-                      initialPosition === 'cash'
-                        ? 'bg-brand text-background font-medium'
-                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
-                    }`}
-                  >
-                    현금
-                  </button>
-                  <button
-                    onClick={() => setInitialPosition('coin')}
-                    className={`px-3 py-1 rounded transition ${
-                      initialPosition === 'coin'
-                        ? 'bg-brand text-background font-medium'
-                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
-                    }`}
-                  >
-                    코인
-                  </button>
-                </div>
               </div>
 
               {/* 모바일: 임계값 표시 */}
@@ -1054,36 +1042,6 @@ export default function TradingSimulationContent({
                     step={0.1}
                     className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-16 text-center"
                   />
-                </div>
-
-                {/* 구분선 */}
-                <div className="w-px h-6 bg-border" />
-
-                {/* 초기 포지션 */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">초기 포지션</span>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setInitialPosition('cash')}
-                      className={`px-2 py-1 rounded transition text-xs ${
-                        initialPosition === 'cash'
-                          ? 'bg-brand text-background font-medium'
-                          : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
-                      }`}
-                    >
-                      현금
-                    </button>
-                    <button
-                      onClick={() => setInitialPosition('coin')}
-                      className={`px-2 py-1 rounded transition text-xs ${
-                        initialPosition === 'coin'
-                          ? 'bg-brand text-background font-medium'
-                          : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
-                      }`}
-                    >
-                      코인
-                    </button>
-                  </div>
                 </div>
 
                 {/* 구분선 */}

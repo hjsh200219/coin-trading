@@ -4,16 +4,17 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import RankingAnalysisContent from '../RankingAnalysisContent'
 import TradingSimulationContent from '../TradingSimulationContent'
+import ProgressiveSimulationContent from '../progressive/ProgressiveSimulationContent'
 
 interface SimulationTabLayoutProps {
   symbol: string
-  initialTab: 'rankingvalue' | 'simulation'
+  initialTab: 'rankingvalue' | 'simulation' | 'progressive'
 }
 
 export default function SimulationTabLayout({ symbol, initialTab }: SimulationTabLayoutProps) {
   const router = useRouter()
 
-  const handleTabChange = (newTab: 'rankingvalue' | 'simulation') => {
+  const handleTabChange = (newTab: 'rankingvalue' | 'simulation' | 'progressive') => {
     router.push(`/simulation/${symbol}/${newTab}`)
   }
 
@@ -55,15 +56,15 @@ export default function SimulationTabLayout({ symbol, initialTab }: SimulationTa
       {/* 탭 네비게이션 */}
       <div className="flex gap-2 border-b border-border pb-2 overflow-x-auto">
         <button
-          onClick={() => handleTabChange('rankingvalue')}
+          onClick={() => handleTabChange('progressive')}
           className={`px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-t transition whitespace-nowrap ${
-            initialTab === 'rankingvalue'
+            initialTab === 'progressive'
               ? 'bg-brand text-background'
               : 'text-foreground/70 hover:text-foreground hover:bg-surface'
           }`}
         >
-          <span className="hidden sm:inline">Ranking Value Calculation</span>
-          <span className="sm:hidden">Ranking Value</span>
+          <span className="hidden sm:inline">단계별 시뮬레이션</span>
+          <span className="sm:hidden">단계별</span>
         </button>
         <button
           onClick={() => handleTabChange('simulation')}
@@ -73,13 +74,26 @@ export default function SimulationTabLayout({ symbol, initialTab }: SimulationTa
               : 'text-foreground/70 hover:text-foreground hover:bg-surface'
           }`}
         >
-          <span className="hidden sm:inline">Trading Simulation</span>
-          <span className="sm:hidden">Simulation</span>
+          <span className="hidden sm:inline">고급 시뮬레이션</span>
+          <span className="sm:hidden">고급</span>
+        </button>
+        <button
+          onClick={() => handleTabChange('rankingvalue')}
+          className={`px-3 md:px-4 py-2 text-xs md:text-sm font-medium rounded-t transition whitespace-nowrap ${
+            initialTab === 'rankingvalue'
+              ? 'bg-brand text-background'
+              : 'text-foreground/70 hover:text-foreground hover:bg-surface'
+          }`}
+        >
+          <span className="hidden sm:inline">랭킹 분석</span>
+          <span className="sm:hidden">랭킹</span>
         </button>
       </div>
 
       {/* 탭 컨텐츠 */}
-      {initialTab === 'rankingvalue' ? (
+      {initialTab === 'progressive' ? (
+        <ProgressiveSimulationContent symbol={symbol} />
+      ) : initialTab === 'rankingvalue' ? (
         <RankingAnalysisContent symbol={symbol} />
       ) : (
         <TradingSimulationContent symbol={symbol} />

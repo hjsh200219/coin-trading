@@ -15,6 +15,11 @@ interface AnalysisSettingsProps {
   onBaseDateChange: (date: string) => void
   onIndicatorToggle: (indicator: keyof IndicatorConfig) => void
   disabledExchanges?: Exchange[]
+  // 추가 옵션 (시뮬레이션용)
+  initialPosition?: 'cash' | 'coin'
+  onInitialPositionChange?: (position: 'cash' | 'coin') => void
+  decisionInterval?: 1 | 2 | 5
+  onDecisionIntervalChange?: (interval: 1 | 2 | 5) => void
 }
 
 /**
@@ -33,6 +38,10 @@ export default function AnalysisSettings({
   onBaseDateChange,
   onIndicatorToggle,
   disabledExchanges = [],
+  initialPosition,
+  onInitialPositionChange,
+  decisionInterval,
+  onDecisionIntervalChange,
 }: AnalysisSettingsProps) {
   const indicatorLabels = {
     macd: 'MACD',
@@ -75,7 +84,7 @@ export default function AnalysisSettings({
       </div>
 
       {/* 데스크톱: 거래소 + 지표 */}
-      <div className="hidden md:flex items-center gap-3 flex-wrap">
+      <div className="hidden md:flex items-center gap-5 flex-wrap">
         {/* 거래소 선택 */}
         <ExchangeSelector
           value={exchange}
@@ -113,7 +122,7 @@ export default function AnalysisSettings({
       {/* 3행: 기준 날짜 (모바일 전용) */}
       <div className="md:hidden">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">기준</span>
+          <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">기준일</span>
           <input
             type="date"
             value={baseDate}
@@ -149,46 +158,196 @@ export default function AnalysisSettings({
         />
       </div>
 
-      {/* 데스크톱: 기준 날짜 + 분석 기간 + 분석 단위 */}
-      <div className="hidden md:flex items-center gap-3 flex-wrap">
-        {/* 기준 날짜 */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">기준</span>
-          <input
-            type="date"
-            value={baseDate}
-            max={new Date().toISOString().split('T')[0]}
-            onChange={(e) => onBaseDateChange(e.target.value)}
-            className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-[115px]"
-            style={{
-              colorScheme: 'dark',
-            }}
+      {/* 6행: 초기 포지션 (모바일 전용, 시뮬레이션용) */}
+      {initialPosition !== undefined && onInitialPositionChange && (
+        <div className="md:hidden flex items-center gap-2 text-xs">
+          <span className="font-medium text-foreground/70 whitespace-nowrap">초기 포지션</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => onInitialPositionChange('cash')}
+              className={`px-3 py-1 rounded transition ${
+                initialPosition === 'cash'
+                  ? 'bg-brand text-background font-medium'
+                  : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+              }`}
+            >
+              현금
+            </button>
+            <button
+              onClick={() => onInitialPositionChange('coin')}
+              className={`px-3 py-1 rounded transition ${
+                initialPosition === 'coin'
+                  ? 'bg-brand text-background font-medium'
+                  : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+              }`}
+            >
+              코인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 7행: 판단 주기 (모바일 전용, 시뮬레이션용) */}
+      {decisionInterval !== undefined && onDecisionIntervalChange && (
+        <div className="md:hidden flex items-center gap-2 text-xs">
+          <span className="font-medium text-foreground/70 whitespace-nowrap">판단 주기</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => onDecisionIntervalChange(1)}
+              className={`px-3 py-1 rounded transition ${
+                decisionInterval === 1
+                  ? 'bg-brand text-background font-medium'
+                  : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+              }`}
+            >
+              1분
+            </button>
+            <button
+              onClick={() => onDecisionIntervalChange(2)}
+              className={`px-3 py-1 rounded transition ${
+                decisionInterval === 2
+                  ? 'bg-brand text-background font-medium'
+                  : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+              }`}
+            >
+              2분
+            </button>
+            <button
+              onClick={() => onDecisionIntervalChange(5)}
+              className={`px-3 py-1 rounded transition ${
+                decisionInterval === 5
+                  ? 'bg-brand text-background font-medium'
+                  : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+              }`}
+            >
+              5분
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 데스크톱: 2줄 구성 */}
+      <div className="hidden md:block space-y-2">
+        {/* 1줄: 기준일 + 기간 */}
+        <div className="flex items-center gap-5 flex-wrap">
+          {/* 기준일 */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">기준일</span>
+            <input
+              type="date"
+              value={baseDate}
+              max={new Date().toISOString().split('T')[0]}
+              onChange={(e) => onBaseDateChange(e.target.value)}
+              className="px-2 py-0.5 bg-surface border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-brand text-xs h-7 w-[115px]"
+              style={{
+                colorScheme: 'dark',
+              }}
+            />
+          </div>
+
+          {/* 구분선 */}
+          <div className="w-px h-6 bg-border" />
+
+          {/* 분석 기간 */}
+          <PeriodSelector
+            value={period}
+            onChange={onPeriodChange}
+            label="기간"
+            showLabel
+            size="sm"
           />
         </div>
 
-        {/* 구분선 */}
-        <div className="w-px h-6 bg-border" />
+        {/* 2줄: 단위 + 판단 주기 + 초기 포지션 */}
+        <div className="flex items-center gap-5 flex-wrap">
+          {/* 분석 단위 */}
+          <TimeFrameSelector
+            value={timeFrame}
+            onChange={onTimeFrameChange}
+            label="단위"
+            showLabel
+            size="sm"
+          />
 
-        {/* 분석 기간 */}
-        <PeriodSelector
-          value={period}
-          onChange={onPeriodChange}
-          label="기간"
-          showLabel
-          size="sm"
-        />
+          {/* 시뮬레이션 옵션 (있을 경우만 표시) */}
+          {decisionInterval !== undefined && onDecisionIntervalChange && (
+            <>
+              {/* 구분선 */}
+              <div className="w-px h-6 bg-border" />
 
-        {/* 구분선 */}
-        <div className="w-px h-6 bg-border" />
+              {/* 판단 주기 */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">판단 주기</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => onDecisionIntervalChange(1)}
+                    className={`px-2 py-1 rounded transition text-xs ${
+                      decisionInterval === 1
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    1분
+                  </button>
+                  <button
+                    onClick={() => onDecisionIntervalChange(2)}
+                    className={`px-2 py-1 rounded transition text-xs ${
+                      decisionInterval === 2
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    2분
+                  </button>
+                  <button
+                    onClick={() => onDecisionIntervalChange(5)}
+                    className={`px-2 py-1 rounded transition text-xs ${
+                      decisionInterval === 5
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    5분
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
 
-        {/* 분석 단위 */}
-        <TimeFrameSelector
-          value={timeFrame}
-          onChange={onTimeFrameChange}
-          label="단위"
-          showLabel
-          size="sm"
-        />
+          {initialPosition !== undefined && onInitialPositionChange && (
+            <>
+              {/* 구분선 */}
+              <div className="w-px h-6 bg-border" />
+
+              {/* 초기 포지션 */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-foreground/70 whitespace-nowrap">초기 포지션</span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => onInitialPositionChange('cash')}
+                    className={`px-2 py-1 rounded transition text-xs ${
+                      initialPosition === 'cash'
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    현금
+                  </button>
+                  <button
+                    onClick={() => onInitialPositionChange('coin')}
+                    className={`px-2 py-1 rounded transition text-xs ${
+                      initialPosition === 'coin'
+                        ? 'bg-brand text-background font-medium'
+                        : 'bg-surface-75 text-foreground/70 hover:bg-surface-100'
+                    }`}
+                  >
+                    코인
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

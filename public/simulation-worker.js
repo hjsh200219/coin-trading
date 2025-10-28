@@ -106,7 +106,9 @@ self.onmessage = function(e) {
         sellThresholdMax,
         indicators, // 지표 설정 ✨
         decimalPlaces, // 소수점 자릿수 ✨
-      initialPosition // 초기 포지션 ✨
+        initialPosition, // 초기 포지션 ✨
+        baseDate, // 분석 시작 시간 (timestamp)
+        timeFrame // 메인 타임프레임 (1d, 4h, 2h, 1h, 30m)
     } = data
 
     // 시뮬레이션 실행
@@ -121,7 +123,9 @@ self.onmessage = function(e) {
         sellThresholdMax,
         indicators, // 지표 설정 전달
         decimalPlaces, // 소수점 자릿수 전달
-        initialPosition // 초기 포지션 전달
+        initialPosition, // 초기 포지션 전달
+        baseDate, // 분석 시작 시간 전달
+        timeFrame // 메인 타임프레임 전달
       )
     } catch (error) {
       self.postMessage({
@@ -172,6 +176,116 @@ self.onmessage = function(e) {
         error: error.message
       })
     }
+  } else if (type === 'START_PHASE1_SIMULATION') {
+    try {
+      const {
+        mainCandles,
+        simulationCandles,
+        conditionRange,
+        thresholdRange,
+        indicators,
+        initialPosition,
+        decimalPlaces,
+        baseDate,
+        timeFrame,
+        decisionInterval = 1
+      } = data
+
+      // Phase 1 시뮬레이션 실행
+      runPhase1Simulation(
+        mainCandles,
+        simulationCandles,
+        conditionRange,
+        thresholdRange,
+        indicators,
+        initialPosition,
+        decimalPlaces,
+        baseDate,
+        timeFrame,
+        decisionInterval
+      )
+    } catch (error) {
+      self.postMessage({
+        type: 'ERROR',
+        error: error.message
+      })
+    }
+  } else if (type === 'START_PHASE2A_SIMULATION') {
+    try {
+      const {
+        mainCandles,
+        simulationCandles,
+        fixedSellCondition,
+        fixedSellThreshold,
+        buyConditionRange,
+        buyThresholdRange,
+        indicators,
+        initialPosition,
+        decimalPlaces,
+        baseDate,
+        timeFrame,
+        decisionInterval = 1
+      } = data
+
+      // Phase 2A 시뮬레이션 실행
+      runPhase2ASimulation(
+        mainCandles,
+        simulationCandles,
+        fixedSellCondition,
+        fixedSellThreshold,
+        buyConditionRange,
+        buyThresholdRange,
+        indicators,
+        initialPosition,
+        decimalPlaces,
+        baseDate,
+        timeFrame,
+        decisionInterval
+      )
+    } catch (error) {
+      self.postMessage({
+        type: 'ERROR',
+        error: error.message
+      })
+    }
+  } else if (type === 'START_PHASE2B_SIMULATION') {
+    try {
+      const {
+        mainCandles,
+        simulationCandles,
+        fixedBuyCondition,
+        fixedBuyThreshold,
+        sellConditionRange,
+        sellThresholdRange,
+        indicators,
+        initialPosition,
+        decimalPlaces,
+        baseDate,
+        timeFrame,
+        decisionInterval = 1
+      } = data
+
+      // Phase 2B 시뮬레이션 실행
+      runPhase2BSimulation(
+        mainCandles,
+        simulationCandles,
+        fixedBuyCondition,
+        fixedBuyThreshold,
+        sellConditionRange,
+        sellThresholdRange,
+        indicators,
+        initialPosition,
+        decimalPlaces,
+        baseDate,
+        timeFrame,
+        decisionInterval
+      )
+    } catch (error) {
+      self.postMessage({
+        type: 'ERROR',
+        error: error.message
+      })
+    }
   }
 }
 
@@ -197,6 +311,163 @@ const LOOKBACK_WINDOW = 1000           // Z-Score 계산용 슬라이딩 윈도�
 // 30분봉: 1000개 = 약 21일
 
 // ===== 유틸리티 함수들 =====
+
+/**
+ * TimeFrame을 초 단위로 변환
+ */
+function timeFrameToSeconds(timeFrame) {
+  switch (timeFrame) {
+    case '30s':
+      return 30
+    case '1m':
+      return 60
+    case '5m':
+      return 300
+    case '30m':
+      return 1800
+    case '1h':
+      return 3600
+    case '2h':
+      return 7200
+    case '4h':
+      return 14400
+    case '1d':
+      return 86400
+    default:
+      return 60
+  }
+}
+
+/**
+ * 구간 앵커 시간 계산 (최초 시작 시간 기준 고정 구간)
+ * 
+ * @param {Date} baseDate - 분석 시작 시간
+ * @param {string} timeFrame - 타임프레임 (1d, 4h, 2h, 1h, 30m)
+ * @returns {number} 마지막 완성된 구간의 시작 시간 (timestamp)
+ * 
+ * @example
+ * getAnchorTime(new Date('2024-01-01 09:30:00'), '2h')
+ * // 9:30 → 9:00 (마지막 완성된 2시간 구간의 시작)
+ */
+function getAnchorTime(baseDate, timeFrame) {
+  const intervalSeconds = timeFrameToSeconds(timeFrame)
+  const baseDateSeconds = Math.floor(baseDate.getTime() / 1000)
+  
+  // 마지막 완성된 구간의 시작 시간 계산
+  const anchorSeconds = Math.floor(baseDateSeconds / intervalSeconds) * intervalSeconds
+  
+  return anchorSeconds * 1000 // milliseconds로 반환
+}
+
+/**
+ * 캔들 데이터를 지정된 타임프레임으로 집계
+ * 
+ * @param {Array} baseCandles - 원본 캔들 데이터 (1분봉 또는 5분봉)
+ * @param {string} targetTimeFrame - 목표 타임프레임 (30s, 1m, 5m, etc.)
+ * @param {number} anchorTime - 구간 앵커 시간 (고정 구간 시작점)
+ * @param {number} count - 집계할 캔들 개수 (기본값: 1000)
+ * @returns {Array} 집계된 캔들 데이터
+ * 
+ * @example
+ * // 1시간봉 분석 시 30초 단위로 1000개 집계
+ * const aggregated = aggregateCandles(candles1m, '30s', anchorTime, 1000)
+ */
+function aggregateCandles(baseCandles, targetTimeFrame, anchorTime, count = 1000) {
+  if (baseCandles.length === 0) return []
+  
+  const intervalMs = timeFrameToSeconds(targetTimeFrame) * 1000
+  
+  // 앵커 시간부터 역순으로 구간 생성
+  const periods = []
+  for (let i = 0; i < count; i++) {
+    const periodEnd = anchorTime - (i * intervalMs)
+    const periodStart = periodEnd - intervalMs
+    periods.unshift({ start: periodStart, end: periodEnd })
+  }
+  
+  // 각 구간별로 캔들 집계
+  const aggregated = []
+  
+  for (const period of periods) {
+    // 해당 구간에 속하는 캔들 찾기
+    const candlesInPeriod = baseCandles.filter(
+      c => c.timestamp >= period.start && c.timestamp < period.end
+    )
+    
+    if (candlesInPeriod.length === 0) {
+      // 데이터가 없으면 이전 캔들의 close 가격 사용 (또는 스킵)
+      if (aggregated.length > 0) {
+        const prevCandle = aggregated[aggregated.length - 1]
+        aggregated.push({
+          timestamp: period.end,
+          open: prevCandle.close,
+          high: prevCandle.close,
+          low: prevCandle.close,
+          close: prevCandle.close,
+          volume: 0,
+        })
+      }
+      continue
+    }
+    
+    // OHLCV 집계
+    const open = candlesInPeriod[0].open
+    const high = Math.max(...candlesInPeriod.map(c => c.high))
+    const low = Math.min(...candlesInPeriod.map(c => c.low))
+    const close = candlesInPeriod[candlesInPeriod.length - 1].close
+    const volume = candlesInPeriod.reduce((sum, c) => sum + c.volume, 0)
+    
+    aggregated.push({
+      timestamp: period.end,
+      open,
+      high,
+      low,
+      close,
+      volume,
+    })
+  }
+  
+  return aggregated
+}
+
+/**
+ * 특정 시점 기준으로 동적 1000개 캔들 집계
+ * 
+ * @param {Array} baseCandles - 원본 캔들 (1분 또는 5분)
+ * @param {number} currentTimestamp - 현재 시점 timestamp
+ * @param {string} targetTimeFrame - 목표 타임프레임 (1m, 5m, etc.)
+ * @param {string} mainTimeFrame - 메인 타임프레임 (1d, 4h, 2h, 1h, 30m)
+ * @returns {Array} 1000개 집계된 캔들
+ */
+function getDynamic1000Candles(baseCandles, currentTimestamp, targetTimeFrame, mainTimeFrame) {
+  if (baseCandles.length === 0) return []
+  
+  // 현재 시점 기준 앵커 계산 (마지막 완성된 구간)
+  const anchorTime = getAnchorTime(new Date(currentTimestamp), mainTimeFrame)
+  
+  // 앵커부터 역순으로 1000개 집계
+  return aggregateCandles(baseCandles, targetTimeFrame, anchorTime, 1000)
+}
+
+/**
+ * 1000개 캔들로 동적 ranking value 계산
+ * 
+ * @param {Array} candles1000 - 1000개 집계된 캔들
+ * @param {Object} indicators - 사용할 지표 설정
+ * @returns {number} 현재 시점의 ranking value
+ */
+function calculateDynamicRankingValue(candles1000, indicators) {
+  if (candles1000.length < 1000) return 0
+  
+  // 지표 배열 계산
+  const indicatorArrays = calculateAllIndicatorArrays(candles1000, indicators)
+  
+  // 증분 통계로 ranking values 계산 (1000개 전체)
+  const rankingValues = calculateAllRankingValuesIncremental(indicatorArrays, indicators)
+  
+  // 마지막 값 (현재 시점) 반환
+  return rankingValues[rankingValues.length - 1] || 0
+}
 
 /**
  * 시뮬레이션용 캔들 데이터 생성
@@ -737,16 +1008,14 @@ function calculateMinMax(values) {
 }
 
 function runTradingSimulation(
-  mainCandles,
-  simulationCandles,
+  aggregatedCandles, // 집계된 캔들 (1000개)
   config,
   cachedIndicatorValues,
   initialPosition = 'cash'
 ) {
   const trades = []
-  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
   
-  if (simCandles.length === 0) {
+  if (aggregatedCandles.length === 0) {
     return {
       totalReturn: 0,
       tradeCount: 0,
@@ -763,7 +1032,7 @@ function runTradingSimulation(
   
   // 코인 보유로 시작하는 경우
   if (initialPosition === 'coin') {
-    const firstPrice = simCandles[0].close
+    const firstPrice = aggregatedCandles[0].close
     holdings = balance / firstPrice
     balance = 0
     buyPrice = firstPrice
@@ -773,9 +1042,9 @@ function runTradingSimulation(
 
   const startIndex = Math.max(config.buyConditionCount, config.sellConditionCount)
 
-  for (let i = startIndex; i < simCandles.length; i++) {
+  for (let i = startIndex; i < aggregatedCandles.length; i++) {
     const indicatorValue = indicatorValues[i]
-    const currentPrice = simCandles[i].close
+    const currentPrice = aggregatedCandles[i].close
 
     // 매수 비교 범위 체크
     if (position === 0 && i >= config.buyConditionCount) {
@@ -790,7 +1059,7 @@ function runTradingSimulation(
         balance = 0
         position = 1
         trades.push({ 
-          timestamp: simCandles[i].timestamp, 
+          timestamp: aggregatedCandles[i].timestamp, 
           action: 'buy', 
           price: currentPrice, 
           minValue: min, 
@@ -811,7 +1080,7 @@ function runTradingSimulation(
         holdings = 0
         position = 0
         trades.push({ 
-          timestamp: simCandles[i].timestamp, 
+          timestamp: aggregatedCandles[i].timestamp, 
           action: 'sell', 
           price: currentPrice, 
           maxValue: max, 
@@ -821,7 +1090,7 @@ function runTradingSimulation(
     }
   }
 
-  const finalPrice = simCandles[simCandles.length - 1].close
+  const finalPrice = aggregatedCandles[aggregatedCandles.length - 1].close
   if (position === 1) {
     balance = holdings * finalPrice
     holdings = 0
@@ -848,15 +1117,18 @@ function runGridSimulation(
   sellThresholdMax,
   indicators, // 지표 설정 ✨
   decimalPlaces, // 소수점 자릿수 ✨
-  initialPosition // 초기 포지션 ✨
+  initialPosition, // 초기 포지션 ✨
+  baseDate, // 분석 시작 시간 (timestamp)
+  timeFrame, // 메인 타임프레임 (1d, 4h, 2h, 1h, 30m)
+  decisionInterval = 1 // 판단 주기 (1, 2, 5분)
 ) {
   const results = []
   const buyThresholds = []
   const sellThresholds = []
   
   // 소수점 자릿수에 따른 step 결정
-  const step = decimalPlaces === 3 ? 0.001 : 0.01
-  const multiplier = decimalPlaces === 3 ? 1000 : 100
+  const step = 0.01 // 항상 0.01 단위
+  const multiplier = 100
   
   // 정수 연산으로 부동소수점 오차 방지
   const buyMinInt = Math.round(buyThresholdMin * multiplier)
@@ -888,20 +1160,55 @@ function runGridSimulation(
   if (simCandles.length === 0) {
     self.postMessage({
       type: 'ERROR',
-      error: '5분봉 데이터가 없습니다.'
+      error: '시뮬레이션 캔들 데이터가 없습니다.'
+    })
+    return
+  }
+  
+  // ⭐ 새로운 로직: 캔들 집계 (선택한 타임프레임으로 1000개)
+  self.postMessage({
+    type: 'PROGRESS',
+    progress: 2,
+    message: '캔들 집계 중...'
+  })
+  
+  // 타임프레임별 시뮬레이션 단위 결정
+  const SIMULATION_TIMEFRAME_MAP = {
+    '1d': '5m',
+    '4h': '1m',
+    '2h': '1m',
+    '1h': '1m',
+    '30m': '1m'
+  }
+  
+  const simulationTimeFrame = timeFrame ? (SIMULATION_TIMEFRAME_MAP[timeFrame] || '5m') : '5m'
+  
+  // baseDate가 없으면 마지막 캔들 시간 사용
+  const analysisBaseDate = baseDate ? new Date(baseDate) : new Date(simCandles[simCandles.length - 1].timestamp)
+  
+  // 구간 앵커 계산 (고정 구간 시작점)
+  const anchorTime = getAnchorTime(analysisBaseDate, timeFrame || '1d')
+  
+  // 캔들 집계 (1000개)
+  const aggregatedCandles = aggregateCandles(simCandles, simulationTimeFrame, anchorTime, 1000)
+  
+  if (aggregatedCandles.length === 0) {
+    self.postMessage({
+      type: 'ERROR',
+      error: '집계된 캔들 데이터가 없습니다.'
     })
     return
   }
   
   // Z-Score 기반 Ranking Value 계산 (슬라이딩 윈도우 방식) ⭐
-  // 1단계: 전체 지표 배열 계산
+  // 1단계: 전체 지표 배열 계산 (집계된 캔들 사용)
   self.postMessage({
     type: 'PROGRESS',
     progress: 5,
     message: '전체 지표 데이터 계산 중...'
   })
   
-  const indicatorArrays = calculateAllIndicatorArrays(simCandles, indicators)
+  const indicatorArrays = calculateAllIndicatorArrays(aggregatedCandles, indicators)
   
   // 2단계: 각 시점의 Z-Score 기반 Ranking Value 계산 (슬라이딩 윈도우)
   // ✅ Phase 1: 증분 통계로 한 번에 계산 (O(N × 1000) → O(N × 1)) ⚡
@@ -934,13 +1241,34 @@ function runGridSimulation(
         sellThreshold
       }
       
-      const result = runTradingSimulation(
-        mainCandles,
-        simulationCandles,
-        config,
-        cachedIndicatorValues,
-        initialPosition
-      )
+      // ⭐ 동적 시뮬레이션 사용
+      const result = {
+        totalReturn: 0,
+        tradeCount: 0
+      }
+      
+      try {
+        const dynamicResult = runDynamicSingleSimulation(
+          aggregatedCandles, // mainCandles로 사용
+          simCandles, // 원본 simCandles
+          config.buyConditionCount,
+          config.sellConditionCount,
+          config.buyThreshold,
+          config.sellThreshold,
+          initialPosition,
+          indicators,
+          simulationTimeFrame,
+          timeFrame,
+          decisionInterval
+        )
+        
+        result.totalReturn = dynamicResult.totalReturn
+        result.tradeCount = dynamicResult.tradeCount
+      } catch (error) {
+        // 에러 발생 시 0 반환
+        result.totalReturn = 0
+        result.tradeCount = 0
+      }
       
       row.push({
         buyThreshold,
@@ -1150,5 +1478,694 @@ function runDetailedSimulation(
     details,
     analysisStartPrice,
     analysisStartTimestamp: simCandles[analysisStartIndex]?.timestamp || simCandles[0].timestamp
+  }
+}
+
+/**
+ * Phase 1: 대칭 탐색 시뮬레이션
+ * 매수/매도 조건을 대칭으로 설정하여 Grid 시뮬레이션 실행
+ */
+function runPhase1Simulation(
+  mainCandles,
+  simulationCandles,
+  conditionRange,
+  thresholdRange,
+  indicators,
+  initialPosition,
+  decimalPlaces,
+  baseDate,
+  timeFrame,
+  decisionInterval = 1
+) {
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
+  
+  if (simCandles.length === 0) {
+    throw new Error('시뮬레이션용 캔들 데이터가 없습니다')
+  }
+
+  // 타임프레임별 시뮬레이션 단위 결정
+  const SIMULATION_TIMEFRAME_MAP = {
+    '1d': '5m',
+    '4h': '1m',
+    '2h': '1m',
+    '1h': '1m',
+    '30m': '1m'
+  }
+  
+  const simulationTimeFrame = timeFrame ? (SIMULATION_TIMEFRAME_MAP[timeFrame] || '5m') : '5m'
+  
+  // baseDate가 없으면 마지막 캔들 시간 사용
+  const analysisBaseDate = baseDate ? new Date(baseDate) : new Date(simCandles[simCandles.length - 1].timestamp)
+  
+  // 구간 앵커 계산 (고정 구간 시작점)
+  const anchorTime = getAnchorTime(analysisBaseDate, timeFrame || '1d')
+  
+  // 캔들 집계 (1000개)
+  const aggregatedCandles = aggregateCandles(simCandles, simulationTimeFrame, anchorTime, 1000)
+  
+  if (aggregatedCandles.length === 0) {
+    throw new Error('집계된 캔들 데이터가 없습니다')
+  }
+
+  // 조건 개수 배열 생성 (예: [1, 2, 3, ..., 10])
+  const conditionCounts = []
+  for (let i = conditionRange.min; i <= conditionRange.max; i++) {
+    conditionCounts.push(i)
+  }
+
+  // 임계값 배열 생성 (항상 0.01 단위 사용)
+  const step = 0.01
+  const thresholdValues = []
+  for (let t = thresholdRange.min; t <= thresholdRange.max; t += step) {
+    thresholdValues.push(Number(t.toFixed(decimalPlaces)))
+  }
+
+  // 전체 조합 수 계산
+  const totalCombinations = conditionCounts.length * thresholdValues.length
+  let completedCombinations = 0
+
+  // 지표 배열 계산 (한 번만 수행 - 모든 조합에서 재사용) - 집계된 캔들 사용
+  const indicatorArrays = calculateAllIndicatorArrays(aggregatedCandles, indicators)
+  const rankingValues = calculateAllRankingValuesIncremental(indicatorArrays, indicators)
+
+  // 결과 저장용 2차원 배열 초기화
+  const results = []
+  let minReturn = Infinity
+  let maxReturn = -Infinity
+  let bestResult = null
+
+  // 진행률 업데이트
+  self.postMessage({
+    type: 'PHASE1_PROGRESS',
+    progress: 0,
+    message: 'Phase 1 시뮬레이션 시작...'
+  })
+
+  // 조건 개수별로 순회
+  for (let condIdx = 0; condIdx < conditionCounts.length; condIdx++) {
+    const conditionCount = conditionCounts[condIdx]
+    const rowResults = []
+
+    // 임계값별로 순회
+    for (let threshIdx = 0; threshIdx < thresholdValues.length; threshIdx++) {
+      const thresholdValue = thresholdValues[threshIdx]
+      
+      // 대칭 조건 설정
+      const buyThreshold = thresholdValue
+      const sellThreshold = -thresholdValue
+
+      // ⭐ 동적 시뮬레이션 실행 (각 시점마다 1000개 재계산)
+      const simulationResult = runDynamicSingleSimulation(
+        aggregatedCandles, // mainCandles로 사용 (집계된 캔들이 메인 타임프레임 역할)
+        simCandles, // 원본 simCandles
+        conditionCount,  // buyConditionCount
+        conditionCount,  // sellConditionCount (대칭)
+        buyThreshold,
+        sellThreshold,
+        initialPosition,
+        indicators, // 지표 설정
+        simulationTimeFrame, // 목표 타임프레임 (1m, 5m)
+        timeFrame, // 메인 타임프레임 (1d, 4h, 2h, 1h, 30m)
+        decisionInterval // 판단 주기
+      )
+
+      // 결과 저장
+      const result = {
+        conditionCount,
+        thresholdValue,
+        buyThreshold,
+        sellThreshold,
+        totalReturn: simulationResult.totalReturn,
+        tradeCount: simulationResult.tradeCount,
+        holdReturn: simulationResult.holdReturn
+      }
+
+      rowResults.push(result)
+
+      // 최소/최대 수익률 업데이트
+      if (result.totalReturn < minReturn) {
+        minReturn = result.totalReturn
+      }
+      if (result.totalReturn > maxReturn) {
+        maxReturn = result.totalReturn
+        bestResult = result
+      }
+
+      // 진행률 업데이트
+      completedCombinations++
+      const progress = 50 + (completedCombinations / totalCombinations) * 50 // 50-100%
+      
+      if (completedCombinations % BATCH_SIZE === 0 || completedCombinations === totalCombinations) {
+        self.postMessage({
+          type: 'PHASE1_PROGRESS',
+          progress,
+          message: `Phase 1 시뮬레이션 진행 중... (${completedCombinations}/${totalCombinations})`
+        })
+      }
+    }
+
+    results.push(rowResults)
+  }
+
+  // Phase 1 완료 - 결과 전송
+  self.postMessage({
+    type: 'PHASE1_COMPLETE',
+    results: {
+      results,
+      minReturn,
+      maxReturn,
+      bestResult,
+      conditionCounts,
+      thresholdValues,
+      config: {
+        indicators,
+        initialPosition,
+        decimalPlaces
+      }
+    }
+  })
+}
+
+/**
+ * Phase 2A: 매수 미세 조정 시뮬레이션
+ * 매도 조건/임계값은 고정, 매수 조건/임계값만 탐색
+ */
+function runPhase2ASimulation(
+  mainCandles,
+  simulationCandles,
+  fixedSellCondition,
+  fixedSellThreshold,
+  buyConditionRange,
+  buyThresholdRange,
+  indicators,
+  initialPosition,
+  decimalPlaces,
+  baseDate,
+  timeFrame,
+  decisionInterval = 1
+) {
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
+  
+  if (simCandles.length === 0) {
+    throw new Error('시뮬레이션용 캔들 데이터가 없습니다')
+  }
+
+  // 타임프레임별 시뮬레이션 단위 결정
+  const SIMULATION_TIMEFRAME_MAP = {
+    '1d': '5m',
+    '4h': '1m',
+    '2h': '1m',
+    '1h': '1m',
+    '30m': '1m'
+  }
+  
+  const simulationTimeFrame = timeFrame ? (SIMULATION_TIMEFRAME_MAP[timeFrame] || '5m') : '5m'
+  
+  // baseDate가 없으면 마지막 캔들 시간 사용
+  const analysisBaseDate = baseDate ? new Date(baseDate) : new Date(simCandles[simCandles.length - 1].timestamp)
+  
+  // 구간 앵커 계산 (고정 구간 시작점)
+  const anchorTime = getAnchorTime(analysisBaseDate, timeFrame || '1d')
+  
+  // 캔들 집계 (1000개)
+  const aggregatedCandles = aggregateCandles(simCandles, simulationTimeFrame, anchorTime, 1000)
+  
+  if (aggregatedCandles.length === 0) {
+    throw new Error('집계된 캔들 데이터가 없습니다')
+  }
+
+  // 매수 조건 개수 배열 생성
+  const buyConditionCounts = []
+  for (let i = buyConditionRange.min; i <= buyConditionRange.max; i++) {
+    buyConditionCounts.push(i)
+  }
+
+  // 매수 임계값 배열 생성 (항상 0.01 단위 사용)
+  const step = 0.01
+  const buyThresholds = []
+  for (let t = buyThresholdRange.min; t <= buyThresholdRange.max; t += step) {
+    buyThresholds.push(Number(t.toFixed(decimalPlaces)))
+  }
+
+  const totalCombinations = buyConditionCounts.length * buyThresholds.length
+  let completedCombinations = 0
+
+  // 지표 배열 계산 (한 번만 수행) - 집계된 캔들 사용
+  const indicatorArrays = calculateAllIndicatorArrays(aggregatedCandles, indicators)
+  const rankingValues = calculateAllRankingValuesIncremental(indicatorArrays, indicators)
+
+  const results = []
+  let minReturn = Infinity
+  let maxReturn = -Infinity
+  let bestResult = null
+
+  self.postMessage({
+    type: 'PHASE2A_PROGRESS',
+    progress: 0,
+    message: 'Phase 2A 시뮬레이션 시작...'
+  })
+
+  // 매수 조건별로 순회
+  for (let condIdx = 0; condIdx < buyConditionCounts.length; condIdx++) {
+    const buyConditionCount = buyConditionCounts[condIdx]
+    const rowResults = []
+
+    // 매수 임계값별로 순회
+    for (let threshIdx = 0; threshIdx < buyThresholds.length; threshIdx++) {
+      const buyThreshold = buyThresholds[threshIdx]
+
+      // ⭐ 동적 시뮬레이션 실행 (각 시점마다 1000개 재계산)
+      const simulationResult = runDynamicSingleSimulation(
+        aggregatedCandles, // mainCandles로 사용
+        simCandles, // 원본 simCandles
+        buyConditionCount,      // 변화
+        fixedSellCondition,     // 고정
+        buyThreshold,           // 변화
+        fixedSellThreshold,     // 고정
+        initialPosition,
+        indicators,
+        simulationTimeFrame,
+        timeFrame,
+        decisionInterval
+      )
+
+      // 결과 저장
+      const result = {
+        buyConditionCount,
+        buyThreshold,
+        sellConditionCount: fixedSellCondition,
+        sellThreshold: fixedSellThreshold,
+        totalReturn: simulationResult.totalReturn,
+        tradeCount: simulationResult.tradeCount,
+        holdReturn: simulationResult.holdReturn
+      }
+
+      rowResults.push(result)
+
+      // 최소/최대 수익률 업데이트
+      if (result.totalReturn < minReturn) {
+        minReturn = result.totalReturn
+      }
+      if (result.totalReturn > maxReturn) {
+        maxReturn = result.totalReturn
+        bestResult = result
+      }
+
+      // 진행률 업데이트
+      completedCombinations++
+      const progress = 50 + (completedCombinations / totalCombinations) * 50
+      
+      if (completedCombinations % BATCH_SIZE === 0 || completedCombinations === totalCombinations) {
+        self.postMessage({
+          type: 'PHASE2A_PROGRESS',
+          progress,
+          message: `Phase 2A 시뮬레이션 진행 중... (${completedCombinations}/${totalCombinations})`
+        })
+      }
+    }
+
+    results.push(rowResults)
+  }
+
+  // Phase 2A 완료 - 결과 전송
+  self.postMessage({
+    type: 'PHASE2A_COMPLETE',
+    results: {
+      results,
+      minReturn,
+      maxReturn,
+      bestResult,
+      buyConditionCounts,
+      buyThresholds,
+      fixedSellCondition,
+      fixedSellThreshold
+    }
+  })
+}
+
+/**
+ * Phase 2B: 매도 미세 조정 시뮬레이션
+ * 매수 조건/임계값은 고정, 매도 조건/임계값만 탐색
+ */
+function runPhase2BSimulation(
+  mainCandles,
+  simulationCandles,
+  fixedBuyCondition,
+  fixedBuyThreshold,
+  sellConditionRange,
+  sellThresholdRange,
+  indicators,
+  initialPosition,
+  decimalPlaces,
+  baseDate,
+  timeFrame,
+  decisionInterval = 1
+) {
+  const simCandles = generateSimulationCandles(mainCandles, simulationCandles)
+  
+  if (simCandles.length === 0) {
+    throw new Error('시뮬레이션용 캔들 데이터가 없습니다')
+  }
+
+  // 타임프레임별 시뮬레이션 단위 결정
+  const SIMULATION_TIMEFRAME_MAP = {
+    '1d': '5m',
+    '4h': '1m',
+    '2h': '1m',
+    '1h': '1m',
+    '30m': '1m'
+  }
+  
+  const simulationTimeFrame = timeFrame ? (SIMULATION_TIMEFRAME_MAP[timeFrame] || '5m') : '5m'
+  
+  // baseDate가 없으면 마지막 캔들 시간 사용
+  const analysisBaseDate = baseDate ? new Date(baseDate) : new Date(simCandles[simCandles.length - 1].timestamp)
+  
+  // 구간 앵커 계산 (고정 구간 시작점)
+  const anchorTime = getAnchorTime(analysisBaseDate, timeFrame || '1d')
+  
+  // 캔들 집계 (1000개)
+  const aggregatedCandles = aggregateCandles(simCandles, simulationTimeFrame, anchorTime, 1000)
+  
+  if (aggregatedCandles.length === 0) {
+    throw new Error('집계된 캔들 데이터가 없습니다')
+  }
+
+  // 매도 조건 개수 배열 생성
+  const sellConditionCounts = []
+  for (let i = sellConditionRange.min; i <= sellConditionRange.max; i++) {
+    sellConditionCounts.push(i)
+  }
+
+  // 매도 임계값 배열 생성 (항상 0.01 단위 사용)
+  const step = 0.01
+  const sellThresholds = []
+  for (let t = sellThresholdRange.min; t <= sellThresholdRange.max; t += step) {
+    sellThresholds.push(Number(t.toFixed(decimalPlaces)))
+  }
+
+  const totalCombinations = sellConditionCounts.length * sellThresholds.length
+  let completedCombinations = 0
+
+  // 지표 배열 계산 (한 번만 수행) - 집계된 캔들 사용
+  const indicatorArrays = calculateAllIndicatorArrays(aggregatedCandles, indicators)
+  const rankingValues = calculateAllRankingValuesIncremental(indicatorArrays, indicators)
+
+  const results = []
+  let minReturn = Infinity
+  let maxReturn = -Infinity
+  let bestResult = null
+
+  self.postMessage({
+    type: 'PHASE2B_PROGRESS',
+    progress: 0,
+    message: 'Phase 2B 시뮬레이션 시작...'
+  })
+
+  // 매도 조건별로 순회
+  for (let condIdx = 0; condIdx < sellConditionCounts.length; condIdx++) {
+    const sellConditionCount = sellConditionCounts[condIdx]
+    const rowResults = []
+
+    // 매도 임계값별로 순회
+    for (let threshIdx = 0; threshIdx < sellThresholds.length; threshIdx++) {
+      const sellThreshold = sellThresholds[threshIdx]
+
+      // ⭐ 동적 시뮬레이션 실행 (각 시점마다 1000개 재계산)
+      const simulationResult = runDynamicSingleSimulation(
+        aggregatedCandles, // mainCandles로 사용
+        simCandles, // 원본 simCandles
+        fixedBuyCondition,      // 고정
+        sellConditionCount,     // 변화
+        fixedBuyThreshold,      // 고정
+        sellThreshold,          // 변화
+        initialPosition,
+        indicators,
+        simulationTimeFrame,
+        timeFrame,
+        decisionInterval
+      )
+
+      // 결과 저장
+      const result = {
+        buyConditionCount: fixedBuyCondition,
+        buyThreshold: fixedBuyThreshold,
+        sellConditionCount,
+        sellThreshold,
+        totalReturn: simulationResult.totalReturn,
+        tradeCount: simulationResult.tradeCount,
+        holdReturn: simulationResult.holdReturn
+      }
+
+      rowResults.push(result)
+
+      // 최소/최대 수익률 업데이트
+      if (result.totalReturn < minReturn) {
+        minReturn = result.totalReturn
+      }
+      if (result.totalReturn > maxReturn) {
+        maxReturn = result.totalReturn
+        bestResult = result
+      }
+
+      // 진행률 업데이트
+      completedCombinations++
+      const progress = 50 + (completedCombinations / totalCombinations) * 50
+      
+      if (completedCombinations % BATCH_SIZE === 0 || completedCombinations === totalCombinations) {
+        self.postMessage({
+          type: 'PHASE2B_PROGRESS',
+          progress,
+          message: `Phase 2B 시뮬레이션 진행 중... (${completedCombinations}/${totalCombinations})`
+        })
+      }
+    }
+
+    results.push(rowResults)
+  }
+
+  // Phase 2B 완료 - 결과 전송
+  self.postMessage({
+    type: 'PHASE2B_COMPLETE',
+    results: {
+      results,
+      minReturn,
+      maxReturn,
+      bestResult,
+      sellConditionCounts,
+      sellThresholds,
+      fixedBuyCondition,
+      fixedBuyThreshold
+    }
+  })
+}
+
+/**
+ * 동적 시뮬레이션 실행 (사용자 지정 주기로 판단)
+ * 
+ * @param {Array} mainCandles - 메인 타임프레임 캔들 (2시간봉 등) - 초기가/최종가 계산용
+ * @param {Array} simCandles - 원본 캔들 (1분봉 또는 5분봉) - 시뮬레이션 기준
+ * @param {number} buyConditionCount - 매수 조건 개수
+ * @param {number} sellConditionCount - 매도 조건 개수
+ * @param {number} buyThreshold - 매수 임계값
+ * @param {number} sellThreshold - 매도 임계값
+ * @param {string} initialPosition - 초기 포지션 ('cash' | 'coin')
+ * @param {Object} indicators - 사용할 지표
+ * @param {string} targetTimeFrame - 목표 타임프레임 (1m, 5m)
+ * @param {string} mainTimeFrame - 메인 타임프레임 (1d, 4h, 2h, 1h, 30m)
+ * @param {number} decisionInterval - 판단 주기 (1, 2, 5분)
+ * @returns {Object} 시뮬레이션 결과
+ */
+function runDynamicSingleSimulation(
+  mainCandles,
+  simCandles,
+  buyConditionCount,
+  sellConditionCount,
+  buyThreshold,
+  sellThreshold,
+  initialPosition,
+  indicators,
+  targetTimeFrame,
+  mainTimeFrame,
+  decisionInterval = 1
+) {
+  // 초기 설정
+  let balance = INITIAL_CAPITAL
+  let holdings = 0
+  let position = POSITION_NONE
+  let buyPrice = 0
+  let tradeCount = 0
+  
+  // ⭐ 변경: simCandles 기준으로 초기가/최종가 계산
+  const firstPrice = simCandles[0].close
+  const finalPrice = simCandles[simCandles.length - 1].close
+
+  // 초기 포지션 설정
+  if (initialPosition === 'coin') {
+    holdings = balance / firstPrice
+    balance = 0
+    buyPrice = firstPrice
+    position = POSITION_LONG
+  }
+
+  // ranking value history (조건 체크용)
+  const rankingHistory = []
+
+  // ⭐ 변경: simCandles 기준으로 decisionInterval에 따라 판단
+  for (let i = 0; i < simCandles.length; i += decisionInterval) {
+    const currentCandle = simCandles[i]
+    const currentPrice = currentCandle.close
+    const currentTimestamp = currentCandle.timestamp
+
+    // ⭐ 현재 시점 기준 동적 1000개 집계 및 ranking value 계산
+    const candles1000 = getDynamic1000Candles(
+      simCandles,
+      currentTimestamp,
+      targetTimeFrame,
+      mainTimeFrame
+    )
+
+    if (candles1000.length < 1000) {
+      // 데이터 부족 시 ranking value 0으로 처리
+      rankingHistory.push(0)
+      continue
+    }
+
+    const rankingValue = calculateDynamicRankingValue(candles1000, indicators)
+    rankingHistory.push(rankingValue)
+
+    // 매수 조건 체크
+    if (position === POSITION_NONE && rankingHistory.length >= buyConditionCount) {
+      // 직전 N개 (현재 제외)
+      const recentValues = rankingHistory.slice(-buyConditionCount - 1, -1)
+      const minValue = Math.min(...recentValues)
+      const buyCondition = rankingValue - minValue
+
+      if (buyCondition > buyThreshold) {
+        // 매수
+        holdings = balance / currentPrice
+        balance = 0
+        buyPrice = currentPrice
+        position = POSITION_LONG
+        tradeCount++
+      }
+    }
+
+    // 매도 조건 체크
+    if (position === POSITION_LONG && rankingHistory.length >= sellConditionCount) {
+      // 직전 N개 (현재 제외)
+      const recentValues = rankingHistory.slice(-sellConditionCount - 1, -1)
+      const maxValue = Math.max(...recentValues)
+      const sellCondition = rankingValue - maxValue
+
+      if (sellCondition < sellThreshold) {
+        // 매도
+        balance = holdings * currentPrice
+        holdings = 0
+        position = POSITION_NONE
+        tradeCount++
+      }
+    }
+  }
+
+  // 최종 청산
+  if (position === POSITION_LONG) {
+    balance = holdings * finalPrice
+    holdings = 0
+  }
+
+  // 수익률 계산
+  const totalReturn = ((balance - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100
+  const holdReturn = ((finalPrice - firstPrice) / firstPrice) * 100
+
+  return {
+    totalReturn,
+    tradeCount,
+    holdReturn
+  }
+}
+
+/**
+ * @deprecated 정적 시뮬레이션 (기존 방식)
+ * 단일 조합에 대한 시뮬레이션 실행
+ * Phase 1, 2A, 2B에서 공통 사용
+ */
+function runSingleSimulation(
+  simCandles,
+  rankingValues,
+  buyConditionCount,
+  sellConditionCount,
+  buyThreshold,
+  sellThreshold,
+  initialPosition
+) {
+  // 초기 설정
+  let balance = INITIAL_CAPITAL
+  let holdings = 0
+  let position = POSITION_NONE
+  let buyPrice = 0
+  let tradeCount = 0
+  const firstPrice = simCandles[0].close
+
+  // 초기 포지션 설정
+  if (initialPosition === 'coin') {
+    holdings = balance / firstPrice
+    balance = 0
+    buyPrice = firstPrice
+    position = POSITION_LONG
+  }
+
+  // 시뮬레이션 실행
+  for (let i = 0; i < simCandles.length; i++) {
+    const currentCandle = simCandles[i]
+    const rankingValue = rankingValues[i]
+    const currentPrice = currentCandle.close
+
+    // 매수 조건 체크
+    if (i >= buyConditionCount && position === POSITION_NONE) {
+      const recentValues = rankingValues.slice(i - buyConditionCount, i)
+      const minValue = Math.min(...recentValues)
+      const buyCondition = rankingValue - minValue
+      
+      if (buyCondition > buyThreshold) {
+        // 매수
+        holdings = balance / currentPrice
+        balance = 0
+        buyPrice = currentPrice
+        position = POSITION_LONG
+        tradeCount++
+      }
+    }
+    // 매도 조건 체크
+    else if (i >= sellConditionCount && position === POSITION_LONG) {
+      const recentValues = rankingValues.slice(i - sellConditionCount, i)
+      const maxValue = Math.max(...recentValues)
+      const sellCondition = rankingValue - maxValue
+      
+      if (sellCondition < sellThreshold) {
+        // 매도
+        balance = holdings * currentPrice
+        holdings = 0
+        position = POSITION_NONE
+        tradeCount++
+      }
+    }
+  }
+
+  // 최종 청산
+  const finalPrice = simCandles[simCandles.length - 1].close
+  if (position === POSITION_LONG) {
+    balance = holdings * finalPrice
+    holdings = 0
+  }
+
+  // 수익률 계산
+  const totalReturn = ((balance - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100
+  const holdReturn = ((finalPrice - firstPrice) / firstPrice) * 100
+
+  return {
+    totalReturn,
+    tradeCount,
+    holdReturn
   }
 }

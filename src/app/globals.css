@@ -57,4 +57,30 @@ body {
   .touch-manipulation {
     touch-action: manipulation;
   }
+
+  /* 커스텀 스크롤바 */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: var(--surface);
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(62, 207, 142, 0.3);
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(62, 207, 142, 0.5);
+  }
+
+  /* Firefox 스크롤바 */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(62, 207, 142, 0.3) var(--surface);
+  }
 }

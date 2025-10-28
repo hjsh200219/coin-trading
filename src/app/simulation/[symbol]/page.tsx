@@ -15,6 +15,6 @@ export default async function SimulationDetailPage({ params }: SimulationDetailP
     notFound()
   }
 
-  // 기본적으로 rankingvalue 탭으로 redirect
-  redirect(`/simulation/${symbol}/rankingvalue`)
+  // 기본적으로 progressive 탭으로 redirect
+  redirect(`/simulation/${symbol}/progressive`)
 }

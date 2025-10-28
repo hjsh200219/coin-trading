@@ -244,6 +244,132 @@ export function timeFrameToMinutes(timeFrame: string): number {
 }
 
 /**
+ * TimeFrame을 초 단위로 변환
+ */
+export function timeFrameToSeconds(timeFrame: string): number {
+  switch (timeFrame) {
+    case '30s':
+      return 30
+    case '1m':
+      return 60
+    case '5m':
+      return 300
+    case '30m':
+      return 1800
+    case '1h':
+      return 3600
+    case '2h':
+      return 7200
+    case '4h':
+      return 14400
+    case '1d':
+      return 86400
+    default:
+      return 60
+  }
+}
+
+/**
+ * 구간 앵커 시간 계산 (최초 시작 시간 기준 고정 구간)
+ * 
+ * @param baseDate - 분석 시작 시간
+ * @param timeFrame - 타임프레임 (1d, 4h, 2h, 1h, 30m)
+ * @returns 마지막 완성된 구간의 시작 시간 (timestamp)
+ * 
+ * @example
+ * getAnchorTime(new Date('2024-01-01 09:30:00'), '2h')
+ * // 9:30 → 9:00 (마지막 완성된 2시간 구간의 시작)
+ * 
+ * getAnchorTime(new Date('2024-01-01 09:30:00'), '1h')
+ * // 9:30 → 9:00 (마지막 완성된 1시간 구간의 시작)
+ */
+export function getAnchorTime(baseDate: Date, timeFrame: string): number {
+  const intervalSeconds = timeFrameToSeconds(timeFrame)
+  const baseDateSeconds = Math.floor(baseDate.getTime() / 1000)
+  
+  // 마지막 완성된 구간의 시작 시간 계산
+  const anchorSeconds = Math.floor(baseDateSeconds / intervalSeconds) * intervalSeconds
+  
+  return anchorSeconds * 1000 // milliseconds로 반환
+}
+
+/**
+ * 캔들 데이터를 지정된 타임프레임으로 집계
+ * 
+ * @param baseCandles - 원본 캔들 데이터 (1분봉 또는 5분봉)
+ * @param targetTimeFrame - 목표 타임프레임 (30s, 1m, 5m, etc.)
+ * @param anchorTime - 구간 앵커 시간 (고정 구간 시작점)
+ * @param count - 집계할 캔들 개수 (기본값: 1000)
+ * @returns 집계된 캔들 데이터
+ * 
+ * @example
+ * // 1시간봉 분석 시 30초 단위로 1000개 집계
+ * const aggregated = aggregateCandles(candles1m, '30s', anchorTime, 1000)
+ */
+export function aggregateCandles(
+  baseCandles: Candle[],
+  targetTimeFrame: string,
+  anchorTime: number,
+  count: number = 1000
+): Candle[] {
+  if (baseCandles.length === 0) return []
+  
+  const intervalMs = timeFrameToSeconds(targetTimeFrame) * 1000
+  
+  // 앵커 시간부터 역순으로 구간 생성
+  const periods: { start: number; end: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const periodEnd = anchorTime - (i * intervalMs)
+    const periodStart = periodEnd - intervalMs
+    periods.unshift({ start: periodStart, end: periodEnd })
+  }
+  
+  // 각 구간별로 캔들 집계
+  const aggregated: Candle[] = []
+  
+  for (const period of periods) {
+    // 해당 구간에 속하는 캔들 찾기
+    const candlesInPeriod = baseCandles.filter(
+      c => c.timestamp >= period.start && c.timestamp < period.end
+    )
+    
+    if (candlesInPeriod.length === 0) {
+      // 데이터가 없으면 이전 캔들의 close 가격 사용 (또는 스킵)
+      if (aggregated.length > 0) {
+        const prevCandle = aggregated[aggregated.length - 1]
+        aggregated.push({
+          timestamp: period.end,
+          open: prevCandle.close,
+          high: prevCandle.close,
+          low: prevCandle.close,
+          close: prevCandle.close,
+          volume: 0,
+        })
+      }
+      continue
+    }
+    
+    // OHLCV 집계
+    const open = candlesInPeriod[0].open
+    const high = Math.max(...candlesInPeriod.map(c => c.high))
+    const low = Math.min(...candlesInPeriod.map(c => c.low))
+    const close = candlesInPeriod[candlesInPeriod.length - 1].close
+    const volume = candlesInPeriod.reduce((sum, c) => sum + c.volume, 0)
+    
+    aggregated.push({
+      timestamp: period.end,
+      open,
+      high,
+      low,
+      close,
+      volume,
+    })
+  }
+  
+  return aggregated
+}
+
+/**
  * 타임프레임에 따른 시뮬레이션 간격 가져오기
  * 
  * @param mainTimeFrame - 메인 타임프레임 (1d, 4h, 2h, 1h, 30m, etc.)
