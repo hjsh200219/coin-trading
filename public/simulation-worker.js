@@ -1330,13 +1330,15 @@ function runGridSimulation(
       
       currentIteration++
       
-      // 시간 기반 또는 배치 기반 진행률 업데이트
+      // 매 시뮬레이션마다 또는 시간 간격으로 진행률 업데이트
       const currentTime = Date.now()
-      if (
-        currentIteration % BATCH_SIZE === 0 ||
-        currentIteration === totalIterations ||
-        currentTime - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL
-      ) {
+      const shouldUpdate = (
+        currentIteration === 1 || // 첫 번째 시뮬레이션
+        currentIteration === totalIterations || // 마지막 시뮬레이션
+        currentTime - lastProgressUpdate >= 200 // 0.2초마다
+      )
+      
+      if (shouldUpdate) {
         lastProgressUpdate = currentTime
         const progress = 10 + (currentIteration / totalIterations) * 90
         self.postMessage({
@@ -1671,16 +1673,18 @@ function runPhase1Simulation(
         bestResult = result
       }
 
-      // 진행률 업데이트 (배치 단위 또는 시간 간격으로)
+      // 진행률 업데이트 (시간 간격으로)
       completedCombinations++
       const progress = 50 + (completedCombinations / totalCombinations) * 50 // 50-100%
       const currentTime = Date.now()
       
-      if (
-        completedCombinations % BATCH_SIZE === 0 || 
-        completedCombinations === totalCombinations ||
-        currentTime - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL
-      ) {
+      const shouldUpdate = (
+        completedCombinations === 1 || // 첫 번째
+        completedCombinations === totalCombinations || // 마지막
+        currentTime - lastProgressUpdate >= 200 // 0.2초마다
+      )
+      
+      if (shouldUpdate) {
         lastProgressUpdate = currentTime
         self.postMessage({
           type: 'PHASE1_PROGRESS',
@@ -1838,16 +1842,18 @@ function runPhase2ASimulation(
         bestResult = result
       }
 
-      // 진행률 업데이트 (배치 단위 또는 시간 간격으로)
+      // 진행률 업데이트 (시간 간격으로)
       completedCombinations++
       const progress = 50 + (completedCombinations / totalCombinations) * 50
       const currentTime = Date.now()
       
-      if (
-        completedCombinations % BATCH_SIZE === 0 || 
-        completedCombinations === totalCombinations ||
-        currentTime - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL
-      ) {
+      const shouldUpdate = (
+        completedCombinations === 1 || // 첫 번째
+        completedCombinations === totalCombinations || // 마지막
+        currentTime - lastProgressUpdate >= 200 // 0.2초마다
+      )
+      
+      if (shouldUpdate) {
         lastProgressUpdate = currentTime
         self.postMessage({
           type: 'PHASE2A_PROGRESS',
@@ -2002,16 +2008,18 @@ function runPhase2BSimulation(
         bestResult = result
       }
 
-      // 진행률 업데이트 (배치 단위 또는 시간 간격으로)
+      // 진행률 업데이트 (시간 간격으로)
       completedCombinations++
       const progress = 50 + (completedCombinations / totalCombinations) * 50
       const currentTime = Date.now()
       
-      if (
-        completedCombinations % BATCH_SIZE === 0 || 
-        completedCombinations === totalCombinations ||
-        currentTime - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL
-      ) {
+      const shouldUpdate = (
+        completedCombinations === 1 || // 첫 번째
+        completedCombinations === totalCombinations || // 마지막
+        currentTime - lastProgressUpdate >= 200 // 0.2초마다
+      )
+      
+      if (shouldUpdate) {
         lastProgressUpdate = currentTime
         self.postMessage({
           type: 'PHASE2B_PROGRESS',
