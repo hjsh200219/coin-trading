@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import type { Phase1Result, Phase2BGrid } from '@/types/simulation'
@@ -61,7 +61,7 @@ export default function Phase2BContent({
   const workerRef = useRef<Worker | null>(null)
 
   // Worker 메시지 핸들러
-  const setupWorkerHandlers = (worker: Worker) => {
+  const setupWorkerHandlers = useCallback((worker: Worker) => {
     worker.onmessage = (e) => {
       const { type, progress: workerProgress, message, results, error } = e.data
       
@@ -97,7 +97,7 @@ export default function Phase2BContent({
       alert('시뮬레이션 중 오류가 발생했습니다.')
       setIsSimulating(false)
     }
-  }
+  }, [onResultsComplete])
 
   // Worker 초기화
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function Phase2BContent({
         workerRef.current.terminate()
       }
     }
-  }, [])
+  }, [setupWorkerHandlers])
 
   const handleSimulate = () => {
     // 범위 검증

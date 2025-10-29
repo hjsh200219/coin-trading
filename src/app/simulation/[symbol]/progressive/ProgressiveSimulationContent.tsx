@@ -29,7 +29,7 @@ export default function ProgressiveSimulationContent({
   // localStorage 키 생성 및 값 불러오기
   const getStorageKey = useCallback((key: string) => `progressive_${symbol}_${key}`, [symbol])
   
-  const getStoredValue = <T,>(key: string, defaultValue: T): T => {
+  const getStoredValue = useCallback(<T,>(key: string, defaultValue: T): T => {
     if (typeof window === 'undefined') return defaultValue
     try {
       const stored = localStorage.getItem(`progressive_${symbol}_${key}`)
@@ -37,13 +37,13 @@ export default function ProgressiveSimulationContent({
     } catch {
       return defaultValue
     }
-  }
+  }, [symbol])
 
   // 시뮬레이션 버전 확인 및 캐시 초기화
   useEffect(() => {
     if (typeof window === 'undefined') return
     
-    const storedVersion = getStoredValue('simulationVersion', 1)
+    const storedVersion = getStoredValue<number>('simulationVersion', 0)
     
     if (storedVersion !== SIMULATION_VERSION) {
       console.log(`🔄 시뮬레이션 로직 변경됨 (v${storedVersion} → v${SIMULATION_VERSION}). 캐시 초기화 중...`)
@@ -289,6 +289,16 @@ export default function ProgressiveSimulationContent({
             setProgressMessage('완료!')
           }
           setIsSimulating(false)
+          break
+        
+        case 'PHASE2A_PROGRESS':
+          setProgress(workerProgress)
+          setProgressMessage(message || '')
+          break
+        
+        case 'PHASE2B_PROGRESS':
+          setProgress(workerProgress)
+          setProgressMessage(message || '')
           break
           
         case 'ERROR':

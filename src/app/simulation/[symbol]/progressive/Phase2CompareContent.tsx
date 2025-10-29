@@ -32,6 +32,18 @@ export default function Phase2CompareContent({
     return Math.round(value).toLocaleString('en-US')
   }
 
+  // 최고 결과 계산
+  const bestOverallResult = (() => {
+    if (!phase2aResults || !phase2bResults) return null
+    
+    const phase2aReturn = phase2aResults.bestResult.totalReturn
+    const phase2bReturn = phase2bResults.bestResult.totalReturn
+    
+    return phase2aReturn >= phase2bReturn
+      ? { phase: '2A' as const, result: phase2aResults.bestResult }
+      : { phase: '2B' as const, result: phase2bResults.bestResult }
+  })()
+
   // 조건 저장
   const handleSaveCondition = () => {
     if (!bestOverallResult) return
@@ -404,7 +416,7 @@ export default function Phase2CompareContent({
         <h3 className="text-sm font-bold mb-2">💡 사용 팁</h3>
         <ul className="text-xs text-foreground/70 space-y-1">
           <li>• Phase 2A와 2B 중 더 높은 수익률을 보이는 전략을 권장합니다</li>
-          <li>• 각 Phase의 "표 보기" 버튼으로 상세한 시뮬레이션 결과를 확인할 수 있습니다</li>
+          <li>• 각 Phase의 &ldquo;표 보기&rdquo; 버튼으로 상세한 시뮬레이션 결과를 확인할 수 있습니다</li>
           <li>• Phase 1로 돌아가서 다른 기준점으로 다시 탐색할 수 있습니다</li>
           <li>• 권장 전략의 조건을 메모하여 실전 거래에 활용하세요</li>
         </ul>

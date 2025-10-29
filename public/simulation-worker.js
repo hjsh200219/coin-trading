@@ -14,6 +14,43 @@
  * 로직 변경 시 이 파일도 수동으로 업데이트해야 합니다.
  */
 
+// ===== 캔들 집계 캐시 =====
+/**
+ * 캔들 집계 결과를 캐싱하여 동일한 anchorTime의 재계산 방지
+ * Key: `${anchorTime}_${targetTimeFrame}`
+ */
+const candleAggregationCache = new Map()
+
+/**
+ * 캐시 키 생성
+ */
+function getCacheKey(anchorTime, targetTimeFrame) {
+  return `${anchorTime}_${targetTimeFrame}`
+}
+
+/**
+ * 캐시에서 집계된 캔들 가져오기 또는 새로 계산
+ */
+function getOrComputeAggregatedCandles(simCandles, anchorTime, targetTimeFrame, count) {
+  const cacheKey = getCacheKey(anchorTime, targetTimeFrame)
+  
+  if (candleAggregationCache.has(cacheKey)) {
+    return candleAggregationCache.get(cacheKey)
+  }
+  
+  const aggregated = aggregateCandles(simCandles, targetTimeFrame, anchorTime, count)
+  candleAggregationCache.set(cacheKey, aggregated)
+  
+  return aggregated
+}
+
+/**
+ * 캐시 초기화
+ */
+function clearCandleCache() {
+  candleAggregationCache.clear()
+}
+
 // ===== Phase 1: 증분 통계 클래스 (Incremental Statistics) ⚡ =====
 /**
  * 슬라이딩 윈도우에서 평균과 표준편차를 O(1) 시간에 계산
@@ -95,6 +132,9 @@ self.onmessage = function(e) {
 
   if (type === 'START_SIMULATION') {
     try {
+      // ⚡ 캐시 초기화
+      clearCandleCache()
+      
       const {
         mainCandles,
         simulationCandles, // 변경: simCandlesCandles → simulationCandles
@@ -178,6 +218,9 @@ self.onmessage = function(e) {
     }
   } else if (type === 'START_PHASE1_SIMULATION') {
     try {
+      // ⚡ 캐시 초기화
+      clearCandleCache()
+      
       const {
         mainCandles,
         simulationCandles,
@@ -212,6 +255,9 @@ self.onmessage = function(e) {
     }
   } else if (type === 'START_PHASE2A_SIMULATION') {
     try {
+      // ⚡ 캐시 초기화
+      clearCandleCache()
+      
       const {
         mainCandles,
         simulationCandles,
@@ -250,6 +296,9 @@ self.onmessage = function(e) {
     }
   } else if (type === 'START_PHASE2B_SIMULATION') {
     try {
+      // ⚡ 캐시 초기화
+      clearCandleCache()
+      
       const {
         mainCandles,
         simulationCandles,
@@ -297,7 +346,8 @@ self.onmessage = function(e) {
 
 const INITIAL_CAPITAL = 1000000        // 초기 자본 (100만원)
 const MAX_LOOKBACK_PERIOD = 120        // 최대 lookback 기간 (캔들 개수)
-const BATCH_SIZE = 10                  // 배치 처리 크기 (진행률 업데이트 간격)
+const BATCH_SIZE = 5                   // 배치 처리 크기 (진행률 업데이트 간격)
+const PROGRESS_UPDATE_INTERVAL = 500   // 진행률 업데이트 최소 간격 (ms)
 const UI_UPDATE_DELAY = 10             // UI 업데이트 딜레이 (ms)
 const THRESHOLD_STEP = 0.01            // 임계값 단위 (0.01 = 1%)
 const POSITION_NONE = 0                // 포지션 없음
@@ -445,8 +495,8 @@ function getDynamic1000Candles(baseCandles, currentTimestamp, targetTimeFrame, m
   // 현재 시점 기준 앵커 계산 (마지막 완성된 구간)
   const anchorTime = getAnchorTime(new Date(currentTimestamp), mainTimeFrame)
   
-  // 앵커부터 역순으로 1000개 집계
-  return aggregateCandles(baseCandles, targetTimeFrame, anchorTime, 1000)
+  // ⚡ 캐싱을 사용한 집계 (동일한 anchorTime은 재사용)
+  return getOrComputeAggregatedCandles(baseCandles, anchorTime, targetTimeFrame, 1000)
 }
 
 /**
@@ -1147,6 +1197,7 @@ function runGridSimulation(
   
   const totalIterations = buyThresholds.length * sellThresholds.length
   let currentIteration = 0
+  let lastProgressUpdate = Date.now()
   
   // 진행 상황 전송
   self.postMessage({
@@ -1278,17 +1329,25 @@ function runGridSimulation(
       })
       
       currentIteration++
+      
+      // 시간 기반 또는 배치 기반 진행률 업데이트
+      const currentTime = Date.now()
+      if (
+        currentIteration % BATCH_SIZE === 0 ||
+        currentIteration === totalIterations ||
+        currentTime - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL
+      ) {
+        lastProgressUpdate = currentTime
+        const progress = 10 + (currentIteration / totalIterations) * 90
+        self.postMessage({
+          type: 'PROGRESS',
+          progress: progress,
+          message: `시뮬레이션 진행 중... (${currentIteration}/${totalIterations})`
+        })
+      }
     }
     
     results.push(row)
-    
-    // 각 행(buyThreshold) 완료 시 진행률 전송 (10% ~ 100%)
-    const progress = 10 + (currentIteration / totalIterations) * 90
-    self.postMessage({
-      type: 'PROGRESS',
-      progress: progress,
-      message: `시뮬레이션 진행 중... ${Math.floor((currentIteration / totalIterations) * 100)}%`
-    })
   }
   
   // 완료 (cachedIndicatorValues도 함께 전송 - Phase 0) ⚡
@@ -1543,6 +1602,7 @@ function runPhase1Simulation(
   // 전체 조합 수 계산
   const totalCombinations = conditionCounts.length * thresholdValues.length
   let completedCombinations = 0
+  let lastProgressUpdate = Date.now()
 
   // 지표 배열 계산 (한 번만 수행 - 모든 조합에서 재사용) - 집계된 캔들 사용
   const indicatorArrays = calculateAllIndicatorArrays(aggregatedCandles, indicators)
@@ -1611,11 +1671,17 @@ function runPhase1Simulation(
         bestResult = result
       }
 
-      // 진행률 업데이트
+      // 진행률 업데이트 (배치 단위 또는 시간 간격으로)
       completedCombinations++
       const progress = 50 + (completedCombinations / totalCombinations) * 50 // 50-100%
+      const currentTime = Date.now()
       
-      if (completedCombinations % BATCH_SIZE === 0 || completedCombinations === totalCombinations) {
+      if (
+        completedCombinations % BATCH_SIZE === 0 || 
+        completedCombinations === totalCombinations ||
+        currentTime - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL
+      ) {
+        lastProgressUpdate = currentTime
         self.postMessage({
           type: 'PHASE1_PROGRESS',
           progress,
@@ -1709,6 +1775,7 @@ function runPhase2ASimulation(
 
   const totalCombinations = buyConditionCounts.length * buyThresholds.length
   let completedCombinations = 0
+  let lastProgressUpdate = Date.now()
 
   // 지표 배열 계산 (한 번만 수행) - 집계된 캔들 사용
   const indicatorArrays = calculateAllIndicatorArrays(aggregatedCandles, indicators)
@@ -1771,11 +1838,17 @@ function runPhase2ASimulation(
         bestResult = result
       }
 
-      // 진행률 업데이트
+      // 진행률 업데이트 (배치 단위 또는 시간 간격으로)
       completedCombinations++
       const progress = 50 + (completedCombinations / totalCombinations) * 50
+      const currentTime = Date.now()
       
-      if (completedCombinations % BATCH_SIZE === 0 || completedCombinations === totalCombinations) {
+      if (
+        completedCombinations % BATCH_SIZE === 0 || 
+        completedCombinations === totalCombinations ||
+        currentTime - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL
+      ) {
+        lastProgressUpdate = currentTime
         self.postMessage({
           type: 'PHASE2A_PROGRESS',
           progress,
@@ -1866,6 +1939,7 @@ function runPhase2BSimulation(
 
   const totalCombinations = sellConditionCounts.length * sellThresholds.length
   let completedCombinations = 0
+  let lastProgressUpdate = Date.now()
 
   // 지표 배열 계산 (한 번만 수행) - 집계된 캔들 사용
   const indicatorArrays = calculateAllIndicatorArrays(aggregatedCandles, indicators)
@@ -1928,11 +2002,17 @@ function runPhase2BSimulation(
         bestResult = result
       }
 
-      // 진행률 업데이트
+      // 진행률 업데이트 (배치 단위 또는 시간 간격으로)
       completedCombinations++
       const progress = 50 + (completedCombinations / totalCombinations) * 50
+      const currentTime = Date.now()
       
-      if (completedCombinations % BATCH_SIZE === 0 || completedCombinations === totalCombinations) {
+      if (
+        completedCombinations % BATCH_SIZE === 0 || 
+        completedCombinations === totalCombinations ||
+        currentTime - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL
+      ) {
+        lastProgressUpdate = currentTime
         self.postMessage({
           type: 'PHASE2B_PROGRESS',
           progress,
